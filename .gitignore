@@ -42,3 +42,6 @@ next-env.d.ts
 
 # generated sample activities
 /samples
+
+# local dev tooling
+/.claude
