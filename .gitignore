@@ -45,3 +45,7 @@ next-env.d.ts
 
 # local dev tooling
 /.claude
+
+# personal submission notes (not part of the app)
+/video-script.md
+/references-apa.md
