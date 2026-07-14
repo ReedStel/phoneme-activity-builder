@@ -1,26 +1,95 @@
 @import "tailwindcss";
 
+/* Class-based dark mode so the theme can be driven by the cookie-backed setting */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Warm "classroom stationery" palette — light mode */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf6ef;
+  --surface: #fffdf8;
+  --foreground: #201c17;
+  --muted: #5d564c;
+  --border: #e5dccb;
+  --accent: #0f766e;
+  --accent-strong: #0b5d57;
+  --accent-soft: #e3efec;
+  --highlight: #f3ead8;
+  --tile-correct: #2e7d32;
+  --tile-present: #b45309;
+  --tile-absent: #8a8178;
+}
+
+.dark {
+  --background: #16130f;
+  --surface: #1f1b15;
+  --foreground: #ede7dc;
+  --muted: #a89f91;
+  --border: #3b342a;
+  --accent: #4fd1c5;
+  --accent-strong: #7ee0d6;
+  --accent-soft: #12332f;
+  --highlight: #2a251d;
+  --tile-correct: #3f9d46;
+  --tile-present: #cf7a1d;
+  --tile-absent: #57504a;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-highlight: var(--highlight);
+  --color-tile-correct: var(--tile-correct);
+  --color-tile-present: var(--tile-present);
+  --color-tile-absent: var(--tile-absent);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Headings get the display serif for a warmer, less template feel */
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+/* Tailwind v4 preflight leaves buttons with the default cursor */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Layout density preference (Settings page) adjusts card padding and gaps */
+.density-comfortable {
+  --density-pad: 1.5rem;
+  --density-gap: 1.5rem;
+}
+.density-compact {
+  --density-pad: 0.875rem;
+  --density-gap: 0.75rem;
+}
+
+/* Gentle press feedback on tactile controls; disabled for reduced motion */
+@media (prefers-reduced-motion: no-preference) {
+  .pressable {
+    transition:
+      transform 120ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .pressable:active:not(:disabled) {
+    transform: translateY(1px) scale(0.98);
+  }
 }
