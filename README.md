@@ -95,5 +95,4 @@ the About page.
 
 ## GitHub repository
 
-Add the repository link here before submission:
-`https://github.com/<username>/phoneme-activity-builder`
+https://github.com/ReedStel/phoneme-activity-builder
