@@ -90,8 +90,13 @@ scripts/
 
 ## The how-to-use video
 
-Place the recorded walkthrough at `public/how-to-use.mp4`; it is embedded on
-the About page.
+The walkthrough video is embedded on the About page and loads from
+`public/how-to-use.mp4`. **It is included in the submitted zip file but is
+deliberately excluded from this public repository**, because the video
+shows my student identification card as required by the assessment brief,
+and identity documents should not be published to a publicly accessible
+site. Extract the submitted zip and run the project to view it in place, or
+watch the copy uploaded separately to the submission portal.
 
 ## Design justification
 
