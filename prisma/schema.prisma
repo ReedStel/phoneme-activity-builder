@@ -1,0 +1,91 @@
+// Prisma schema for the Phoneme Activity Builder (Assessment 2).
+//
+// Design notes
+// - Phonemes are stored one per row (WordPhoneme) rather than as a string,
+//   because HCE symbols such as "tʃ", "dʒ", "æɪ" and "əʉ" occupy more than
+//   one character. A row per phoneme keeps position and identity explicit.
+// - Every WordPhoneme references the Phoneme inventory, so the database
+//   itself rejects unknown symbols and the English letter hints
+//   ("TH as in thin") live in one place.
+// - ActivityConfig stores a saved Wordle or Word Search set-up so teachers
+//   can keep and regenerate multiple activities.
+// - SQLite is used so the whole app runs in a single Docker container.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Reference inventory of HCE phoneme symbols and their English hints.
+model Phoneme {
+  symbol       String        @id // e.g. "tʃ" (multi-character safe)
+  label        String // English letter equivalence, e.g. "CH"
+  example      String // example word, e.g. "chin"
+  type         String // "consonant" | "vowel"
+  sortOrder    Int // keyboard / display order
+  wordPhonemes WordPhoneme[]
+}
+
+/// A teacher-managed collection of phoneme words.
+model WordList {
+  id          Int              @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  words       Word[]
+  activities  ActivityConfig[]
+}
+
+/// A single word: English spelling plus its ordered phonemes.
+model Word {
+  id         Int              @id @default(autoincrement())
+  english    String
+  wordListId Int
+  wordList   WordList         @relation(fields: [wordListId], references: [id], onDelete: Cascade)
+  phonemes   WordPhoneme[]
+  targetOf   ActivityConfig[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([wordListId])
+}
+
+/// One phoneme at one position within a word.
+model WordPhoneme {
+  id       Int     @id @default(autoincrement())
+  wordId   Int
+  position Int
+  symbol   String
+  word     Word    @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  phoneme  Phoneme @relation(fields: [symbol], references: [symbol])
+
+  @@unique([wordId, position])
+  @@index([symbol])
+}
+
+/// A saved Wordle or Word Search configuration.
+model ActivityConfig {
+  id             Int      @id @default(autoincrement())
+  title          String
+  type           String // "WORDLE" | "WORDSEARCH"
+  difficulty     String   @default("medium") // "easy" | "medium" | "hard"
+  wordListId     Int
+  wordList       WordList @relation(fields: [wordListId], references: [id], onDelete: Cascade)
+  targetWordId   Int? // Wordle only: the single target word
+  targetWord     Word?    @relation(fields: [targetWordId], references: [id], onDelete: SetNull)
+  attempts       Int      @default(5) // Wordle guesses allowed
+  gridSize       Int      @default(10) // Word Search grid size
+  allowDiagonals Boolean  @default(false) // Word Search placement rule
+  showHints      Boolean  @default(true) // mouse-over phoneme hints in output
+  seed           Int      @default(1) // Word Search layout seed
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([wordListId])
+}
