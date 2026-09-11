@@ -14,7 +14,9 @@
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
     "setup": "prisma generate && prisma migrate deploy && prisma db seed",
-    "test:api": "tsx scripts/api-smoke-test.ts"
+    "test:api": "tsx scripts/api-smoke-test.ts",
+    "build:seed": "esbuild prisma/seed.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/seed.cjs --external:@prisma/client",
+    "docker:up": "docker compose up --build"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -29,6 +31,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",

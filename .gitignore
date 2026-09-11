@@ -59,3 +59,6 @@ prisma/*.db
 prisma/*.db-journal
 # .env holds only the local SQLite path, so it is committed on purpose
 !.env
+
+# Build output for the Docker seed script
+/dist

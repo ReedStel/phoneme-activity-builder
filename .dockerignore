@@ -1,0 +1,15 @@
+# Rebuilt inside the image
+node_modules
+.next
+dist
+
+# Local-only files that do not belong in the image
+.git
+.claude
+samples
+prisma/*.db
+prisma/*.db-journal
+npm-debug.log*
+SUBMISSION-GUIDE.md
+video-script.md
+references-apa.md
