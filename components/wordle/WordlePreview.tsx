@@ -76,17 +76,26 @@ export function WordlePreview({
       setMessage("Correct! Well done!");
     } else if (nextGuesses.length >= attempts) {
       setStatus("lost");
-      setMessage("Out of attempts — the answer is revealed below.");
+      setMessage("Out of attempts. The answer is revealed below.");
     } else {
-      setMessage(`Not quite — attempt ${nextGuesses.length + 1} of ${attempts}.`);
+      setMessage(`Not quite. Attempt ${nextGuesses.length + 1} of ${attempts}.`);
     }
   };
 
-  // Physical keyboard support: Enter submits, Backspace deletes.
+  // Physical keyboard support: Enter checks the guess, Backspace deletes.
+  // Keys typed into form fields elsewhere on the page are left alone, and
+  // Enter is taken over so a focused phoneme key is not pressed as well.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter") submit();
-      if (e.key === "Backspace") backspace();
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submit();
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        backspace();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

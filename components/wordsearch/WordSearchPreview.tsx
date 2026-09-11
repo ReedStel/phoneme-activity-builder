@@ -71,7 +71,7 @@ export function WordSearchPreview({
     const path = straightPath(start, [r, c]);
     setStart(null);
     if (!path) {
-      setMessage("Selections must be in a straight line — try again.");
+      setMessage("Selections must be in a straight line. Try again.");
       return;
     }
     const reversed = [...path].reverse();
@@ -81,7 +81,7 @@ export function WordSearchPreview({
         (samePath(path, p.cells) || samePath(reversed, p.cells))
     );
     if (!hit) {
-      setMessage("That is not one of the hidden words — keep looking!");
+      setMessage("That is not one of the hidden words. Keep looking!");
       return;
     }
     const next = new Set(found);
