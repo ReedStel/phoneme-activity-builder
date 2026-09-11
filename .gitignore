@@ -62,3 +62,6 @@ prisma/*.db-journal
 
 # Build output for the Docker seed script
 /dist
+
+# Personal notes from Assessment 1 (not part of the app)
+/a1-notes
