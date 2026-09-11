@@ -14,11 +14,14 @@ import { ALL_WORDS, WORDSEARCH_WORDS } from "../lib/words";
 const outDir = join(__dirname, "..", "samples");
 mkdirSync(outDir, { recursive: true });
 
+const byEnglish = (s: string) => ALL_WORDS.find((w) => w.english === s)!;
+
 const wordleHtml = buildWordleHtml({
-  title: "Phoneme Wordle — TH words",
-  word: ALL_WORDS.find((w) => w.english === "thin")!, // /θɪn/
-  attempts: 5,
+  title: "Phoneme'le sample: TH, SH and CH words",
+  words: ["thin", "ship", "chin"].map(byEnglish),
+  attempts: 6,
   showHints: true,
+  difficulty: "easy",
 });
 writeFileSync(join(outDir, "sample-wordle.html"), wordleHtml);
 
@@ -29,16 +32,9 @@ const wsConfig = {
   allowDiagonals: false,
   showHints: true,
   seed: 1,
+  difficulty: "medium",
 };
-const grid = buildWordSearch(
-  wsConfig.words,
-  wsConfig.gridSize,
-  wsConfig.allowDiagonals,
-  wsConfig.seed
-);
-writeFileSync(
-  join(outDir, "sample-word-search.html"),
-  buildWordSearchHtml(wsConfig, grid)
-);
+const grid = buildWordSearch(wsConfig.words, wsConfig.gridSize, wsConfig.allowDiagonals, wsConfig.seed);
+writeFileSync(join(outDir, "sample-word-search.html"), buildWordSearchHtml(wsConfig, grid));
 
 console.log(`Samples written to ${outDir}`);

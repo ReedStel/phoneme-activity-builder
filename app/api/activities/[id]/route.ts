@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ApiError, handle, ok, parseBody, parseId } from "@/lib/api";
-import { activityInclude, serializeActivity, validateActivityRefs } from "@/lib/activities";
-import { activityUpdateSchema } from "@/lib/validation";
+import { activityInclude, serializeActivity, validateActivitySelection } from "@/lib/activities";
+import { activityUpdateSchema, type ActivityType } from "@/lib/validation";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -18,35 +18,58 @@ export function GET(_req: Request, { params }: Ctx) {
   });
 }
 
-/** PATCH /api/activities/:id - update any subset of an activity's settings. */
+/** PATCH /api/activities/:id - update any subset of an activity's settings or words. */
 export function PATCH(req: Request, { params }: Ctx) {
   return handle(async () => {
     const id = parseId((await params).id);
     const input = await parseBody(req, activityUpdateSchema);
 
-    const existing = await prisma.activityConfig.findUnique({ where: { id } });
+    const existing = await prisma.activityConfig.findUnique({
+      where: { id },
+      include: { words: { orderBy: { position: "asc" } } },
+    });
     if (!existing) throw new ApiError(404, `Activity ${id} not found`);
 
-    // Re-check references using the merged (existing + incoming) values.
-    const wordListId = input.wordListId ?? existing.wordListId;
-    const targetWordId =
-      input.targetWordId !== undefined ? input.targetWordId : existing.targetWordId;
-    await validateActivityRefs(wordListId, targetWordId, existing.type);
+    if (
+      input.wordListId !== undefined &&
+      input.wordListId !== existing.wordListId &&
+      input.wordIds === undefined
+    ) {
+      throw new ApiError(400, "Changing the word list also needs a new word selection (wordIds)");
+    }
 
-    const activity = await prisma.activityConfig.update({
-      where: { id },
-      data: {
-        ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
-        wordListId,
-        targetWordId: existing.type === "WORDLE" ? targetWordId : null,
-        ...(input.attempts !== undefined ? { attempts: input.attempts } : {}),
-        ...(input.gridSize !== undefined ? { gridSize: input.gridSize } : {}),
-        ...(input.allowDiagonals !== undefined ? { allowDiagonals: input.allowDiagonals } : {}),
-        ...(input.showHints !== undefined ? { showHints: input.showHints } : {}),
-        ...(input.seed !== undefined ? { seed: input.seed } : {}),
-      },
-      include: activityInclude,
+    // Check the merged result (existing values plus the incoming changes).
+    const wordListId = input.wordListId ?? existing.wordListId;
+    const wordIds = input.wordIds ?? existing.words.map((w) => w.wordId);
+    const gridSize = input.gridSize ?? existing.gridSize;
+    await validateActivitySelection({
+      type: existing.type as ActivityType,
+      wordListId,
+      wordIds,
+      gridSize,
+    });
+
+    const activity = await prisma.$transaction(async (tx) => {
+      if (input.wordIds) {
+        await tx.activityWord.deleteMany({ where: { activityId: id } });
+        await tx.activityWord.createMany({
+          data: input.wordIds.map((wordId, position) => ({ activityId: id, wordId, position })),
+        });
+      }
+      return tx.activityConfig.update({
+        where: { id },
+        data: {
+          wordListId,
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
+          ...(input.attempts !== undefined ? { attempts: input.attempts } : {}),
+          ...(input.gridSize !== undefined ? { gridSize: input.gridSize } : {}),
+          ...(input.allowDiagonals !== undefined ? { allowDiagonals: input.allowDiagonals } : {}),
+          ...(input.showHints !== undefined ? { showHints: input.showHints } : {}),
+          ...(input.seed !== undefined ? { seed: input.seed } : {}),
+        },
+        include: activityInclude,
+      });
     });
     return ok(serializeActivity(activity));
   });

@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db";
 import { handle, ok, parseBody } from "@/lib/api";
-import { assertPhonemesExist } from "@/lib/phoneme-check";
 import { wordInclude, toWordDto } from "@/lib/serialize";
 import { wordListInputSchema } from "@/lib/validation";
+import { assertKnownPhonemes, assertUniqueSpellings } from "@/lib/word-rules";
 
 /** GET /api/word-lists - every list with its word and activity counts. */
 export function GET() {
@@ -18,7 +18,7 @@ export function GET() {
         description: l.description,
         wordCount: l._count.words,
         activityCount: l._count.activities,
-        updatedAt: l.updatedAt,
+        updatedAt: l.updatedAt.toISOString(),
       }))
     );
   });
@@ -29,7 +29,8 @@ export function POST(req: Request) {
   return handle(async () => {
     const input = await parseBody(req, wordListInputSchema);
     const words = input.words ?? [];
-    await assertPhonemesExist(words.flatMap((w) => w.phonemes));
+    await assertUniqueSpellings(null, words);
+    await assertKnownPhonemes(words);
 
     const list = await prisma.wordList.create({
       data: {
@@ -46,6 +47,14 @@ export function POST(req: Request) {
       },
       include: { words: { include: wordInclude, orderBy: { id: "asc" } } },
     });
-    return ok({ ...list, words: list.words.map(toWordDto) }, 201);
+    return ok(
+      {
+        id: list.id,
+        name: list.name,
+        description: list.description,
+        words: list.words.map(toWordDto),
+      },
+      201
+    );
   });
 }

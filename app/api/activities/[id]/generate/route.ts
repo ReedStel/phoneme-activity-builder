@@ -1,28 +1,23 @@
 import { prisma } from "@/lib/db";
 import { ApiError, handle, parseId } from "@/lib/api";
+import { activityInclude, activityWordProblems } from "@/lib/activities";
 import { buildWordleHtml, wordleFilename } from "@/lib/generate/wordle-html";
 import { buildWordSearchHtml, wordSearchFilename } from "@/lib/generate/wordsearch-html";
-import { wordInclude, toPhonemeWord } from "@/lib/serialize";
+import { toPhonemeWord } from "@/lib/serialize";
+import type { ActivityType } from "@/lib/validation";
 import { buildWordSearch } from "@/lib/wordsearch";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-function htmlDownload(html: string, filename: string) {
-  return new Response(html, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
-}
-
 /**
  * GET /api/activities/:id/generate
+ *
  * Builds the standalone, playable HTML file for a saved activity entirely
- * from database data (word list, target word, settings) and returns it as a
- * download. Add ?inline=1 to view it in the browser instead.
+ * from database data (its words, phonemes and settings) and returns it as a
+ * download. Add ?inline=1 to open it in the browser instead.
+ *
+ * The word rules are checked again here because words can be edited or
+ * deleted after an activity is saved.
  */
 export function GET(req: Request, { params }: Ctx) {
   return handle(async () => {
@@ -31,40 +26,37 @@ export function GET(req: Request, { params }: Ctx) {
 
     const activity = await prisma.activityConfig.findUnique({
       where: { id },
-      include: {
-        wordList: { include: { words: { include: wordInclude, orderBy: { id: "asc" } } } },
-        targetWord: { include: wordInclude },
-      },
+      include: activityInclude,
     });
     if (!activity) throw new ApiError(404, `Activity ${id} not found`);
+
+    const type = activity.type as ActivityType;
+    const words = activity.words.map((aw) => toPhonemeWord(aw.word));
+    if (words.length === 0) {
+      throw new ApiError(
+        400,
+        "This activity has no words left. They may have been deleted from the word list, so edit the activity and choose some words."
+      );
+    }
+    const problems = activityWordProblems(type, words, activity.gridSize);
+    if (problems.length) {
+      throw new ApiError(400, "This activity needs fixing before it can be generated", problems);
+    }
 
     let html: string;
     let filename: string;
 
-    if (activity.type === "WORDLE") {
-      if (!activity.targetWord) {
-        throw new ApiError(400, "This Wordle activity has no target word. Edit it and choose one.");
-      }
+    if (type === "WORDLE") {
       const config = {
         title: activity.title,
-        word: toPhonemeWord(activity.targetWord),
+        words,
         attempts: activity.attempts,
         showHints: activity.showHints,
+        difficulty: activity.difficulty,
       };
       html = buildWordleHtml(config);
       filename = wordleFilename(config);
     } else {
-      const words = activity.wordList.words.map(toPhonemeWord);
-      if (words.length === 0) {
-        throw new ApiError(400, "The word list for this activity is empty. Add some words first.");
-      }
-      const longest = Math.max(...words.map((w) => w.phonemes.length));
-      if (longest > activity.gridSize) {
-        throw new ApiError(
-          400,
-          `The longest word has ${longest} phonemes but the grid is only ${activity.gridSize} wide. Increase the grid size.`
-        );
-      }
       const config = {
         title: activity.title,
         words,
@@ -72,6 +64,7 @@ export function GET(req: Request, { params }: Ctx) {
         allowDiagonals: activity.allowDiagonals,
         showHints: activity.showHints,
         seed: activity.seed,
+        difficulty: activity.difficulty,
       };
       let grid;
       try {
@@ -79,19 +72,20 @@ export function GET(req: Request, { params }: Ctx) {
       } catch {
         throw new ApiError(
           400,
-          "Could not fit every word on the grid. Increase the grid size or use fewer words."
+          "Could not fit every word on the grid. Increase the grid size, allow diagonals, or choose fewer words."
         );
       }
       html = buildWordSearchHtml(config, grid);
       filename = wordSearchFilename(config);
     }
 
-    if (inline) {
-      return new Response(html, {
-        status: 200,
-        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
-      });
-    }
-    return htmlDownload(html, filename);
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        ...(inline ? {} : { "Content-Disposition": `attachment; filename="${filename}"` }),
+      },
+    });
   });
 }

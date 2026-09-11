@@ -5,10 +5,11 @@
 //   because HCE symbols such as "tʃ", "dʒ", "æɪ" and "əʉ" occupy more than
 //   one character. A row per phoneme keeps position and identity explicit.
 // - Every WordPhoneme references the Phoneme inventory, so the database
-//   itself rejects unknown symbols and the English letter hints
+//   itself rejects unknown symbols, and the English letter hints
 //   ("TH as in thin") live in one place.
-// - ActivityConfig stores a saved Wordle or Word Search set-up so teachers
-//   can keep and regenerate multiple activities.
+// - ActivityConfig stores a saved Wordle or Word Search set-up. ActivityWord
+//   records which words it uses and in what order, so one word list can
+//   drive many activities.
 // - SQLite is used so the whole app runs in a single Docker container.
 
 generator client {
@@ -27,7 +28,7 @@ model Phoneme {
   label        String // English letter equivalence, e.g. "CH"
   example      String // example word, e.g. "chin"
   type         String // "consonant" | "vowel"
-  sortOrder    Int // keyboard / display order
+  sortOrder    Int // keyboard and display order
   wordPhonemes WordPhoneme[]
 }
 
@@ -44,16 +45,16 @@ model WordList {
 
 /// A single word: English spelling plus its ordered phonemes.
 model Word {
-  id         Int              @id @default(autoincrement())
-  english    String
-  wordListId Int
-  wordList   WordList         @relation(fields: [wordListId], references: [id], onDelete: Cascade)
-  phonemes   WordPhoneme[]
-  targetOf   ActivityConfig[]
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id            Int            @id @default(autoincrement())
+  english       String
+  wordListId    Int
+  wordList      WordList       @relation(fields: [wordListId], references: [id], onDelete: Cascade)
+  phonemes      WordPhoneme[]
+  activityWords ActivityWord[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  @@index([wordListId])
+  @@unique([wordListId, english]) // no duplicate spellings within one list
 }
 
 /// One phoneme at one position within a word.
@@ -71,21 +72,33 @@ model WordPhoneme {
 
 /// A saved Wordle or Word Search configuration.
 model ActivityConfig {
-  id             Int      @id @default(autoincrement())
+  id             Int            @id @default(autoincrement())
   title          String
   type           String // "WORDLE" | "WORDSEARCH"
-  difficulty     String   @default("medium") // "easy" | "medium" | "hard"
+  difficulty     String         @default("medium") // "easy" | "medium" | "hard"
   wordListId     Int
-  wordList       WordList @relation(fields: [wordListId], references: [id], onDelete: Cascade)
-  targetWordId   Int? // Wordle only: the single target word
-  targetWord     Word?    @relation(fields: [targetWordId], references: [id], onDelete: SetNull)
-  attempts       Int      @default(5) // Wordle guesses allowed
-  gridSize       Int      @default(10) // Word Search grid size
-  allowDiagonals Boolean  @default(false) // Word Search placement rule
-  showHints      Boolean  @default(true) // mouse-over phoneme hints in output
-  seed           Int      @default(1) // Word Search layout seed
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  wordList       WordList       @relation(fields: [wordListId], references: [id], onDelete: Cascade)
+  words          ActivityWord[] // the chosen words, in play order
+  attempts       Int            @default(5) // Wordle guesses allowed per word
+  gridSize       Int            @default(10) // Word Search grid is gridSize by gridSize
+  allowDiagonals Boolean        @default(false) // Word Search placement rule
+  showHints      Boolean        @default(true) // mouse-over phoneme hints in the output
+  seed           Int            @default(1) // Word Search layout seed (same seed, same grid)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([wordListId])
+}
+
+/// Join table: which words an activity uses, and in what order.
+model ActivityWord {
+  activityId Int
+  wordId     Int
+  position   Int
+  activity   ActivityConfig @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  word       Word           @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, wordId])
+  @@unique([activityId, position])
+  @@index([wordId])
 }
