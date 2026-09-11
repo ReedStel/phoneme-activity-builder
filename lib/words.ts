@@ -1,11 +1,11 @@
 /**
  * Word lists from the course corpus ("HCE Phoneme Word Lists for
- * Wordle-style Puzzle Construction") — broad HCE transcription, one phoneme
- * per cell. 30 words each of 3, 4 and 5 phonemes; word length is the
- * Wordle difficulty setting.
+ * Wordle-style Puzzle Construction"), in broad HCE transcription with one
+ * phoneme per cell: 30 words each of 3, 4 and 5 phonemes.
  *
- * Assessment 1 uses these fixed lists; Assessment 2 will replace them with a
- * database-driven word list, which is why they live in one module.
+ * Since Assessment 2 these lists are seed data only. prisma/seed.ts loads
+ * them into the database, and from then on the app reads and edits words
+ * through the API.
  */
 
 export interface PhonemeWord {

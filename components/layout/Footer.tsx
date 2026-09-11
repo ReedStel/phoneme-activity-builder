@@ -1,4 +1,6 @@
-/** Site footer with author identification, required on every page. */
+import { HealthBadge } from "@/components/ui/HealthBadge";
+
+/** Site footer: author identification (required on every page) and live API status. */
 export function Footer() {
   return (
     <footer className="border-t border-border bg-surface">
@@ -7,7 +9,7 @@ export function Footer() {
           Made by <span className="font-semibold text-foreground">Reed Stelfox</span>{" "}
           · Student No. <span className="font-mono">22813726</span>
         </p>
-        <p>Phoneme Activity Builder · Assessment 1 (frontend only)</p>
+        <HealthBadge />
       </div>
     </footer>
   );

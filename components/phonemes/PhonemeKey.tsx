@@ -11,7 +11,7 @@ const STATE_CLASSES: Record<CellState, string> = {
 
 /**
  * A single phoneme button with a mouse-over / focus tooltip showing the
- * phonetic-to-English letter equivalence, e.g. "/θ/ — TH (as in thin)".
+ * phonetic-to-English letter equivalence, e.g. "/θ/: TH (as in thin)".
  */
 export function PhonemeKey({
   phoneme,

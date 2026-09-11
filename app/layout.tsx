@@ -27,7 +27,7 @@ const nunitoSans = Nunito_Sans({
 export const metadata: Metadata = {
   title: "Phoneme Activity Builder",
   description:
-    "Assessment 1 — a frontend builder for phoneme-based Wordle and Word Search classroom activities for Speech Pathology teaching.",
+    "Assessment 2: a database-backed builder for phoneme-based Wordle and Word Search classroom activities for Speech Pathology teaching.",
 };
 
 export default async function RootLayout({
@@ -36,7 +36,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Read preferences server-side so the first paint already has the right
-  // theme — no flash of the wrong mode.
+  // theme, with no flash of the wrong mode.
   const cookieStore = await cookies();
   const themeCookie = cookieStore.get(THEME_COOKIE)?.value;
   const densityCookie = cookieStore.get(DENSITY_COOKIE)?.value;
