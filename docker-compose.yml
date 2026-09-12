@@ -1,13 +1,18 @@
 # One-command start:  docker compose up --build
-# The database lives in a named volume, so saved word lists and activities
-# survive container restarts and rebuilds.
+# Laid out like the Workshop 6 lab compose file, plus a named volume so saved
+# word lists and activities survive container restarts and rebuilds.
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: phoneme-activity-builder
     container_name: phoneme-activity-builder
     ports:
       - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/app.db
     volumes:
       - phoneme-data:/app/data
     restart: unless-stopped
