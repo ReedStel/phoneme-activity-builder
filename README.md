@@ -49,9 +49,13 @@ database with the course word lists, then starts the server. The database
 file lives in the `phoneme-data` volume, so saved work survives restarts and
 rebuilds. `docker compose down -v` deletes the volume for a clean start.
 
-The image is a three-stage build (dependencies, build, runtime) based on the
-official Next.js Docker example. It uses Next.js standalone output, runs as a
-non-root user, and includes a `HEALTHCHECK` that calls `/health`.
+The Dockerfile follows the pattern from the unit's Workshop 6 lab: a build
+stage and a production stage on `node:lts-alpine`, `tini` as the entrypoint
+for proper signal handling, and `npm start`. The database steps follow the
+Workshop 7 lab: `prisma generate` runs at build time, and `entrypoint.sh`
+applies the migrations each time the container starts. `npm ci` installs the
+exact versions in `package-lock.json`, so every build is the same, and a
+`HEALTHCHECK` calls `/health`.
 
 ## Pages
 
@@ -238,7 +242,7 @@ prisma/
   seed.ts               Seeds the inventory, corpus lists and example activities
 scripts/
   api-smoke-test.ts     End-to-end API checks
-Dockerfile  docker-compose.yml  docker-entrypoint.sh
+Dockerfile  docker-compose.yml  entrypoint.sh
 ```
 
 ## Repository workflow
@@ -324,13 +328,17 @@ now drive the output: a Wordle can hold several words that students play in
 order, and a Word Search can use any list.
 
 **Docker.** Containers make the environment reproducible, so the app behaves
-the same on a marker's machine as on mine (Merkel, 2014). The Dockerfile uses
-a multi-stage build (Docker Inc., n.d.): dependencies and the build tool chain
-stay in earlier stages, and the runtime image contains only the standalone
-server, the Prisma client and the migrations. The container runs as a
-non-root user, applies migrations on start-up, seeds only an empty database so
-a teacher's data is never overwritten, keeps the database in a volume, and
-reports its health through the `/health` endpoint.
+the same on a marker's machine as on mine (Merkel, 2014). The Dockerfile keeps
+to the two-stage pattern taught in the Workshop 6 lab, a multi-stage build
+(Docker Inc., n.d.): the build stage installs the packages and compiles the
+app, and the production stage starts from a clean image and copies across only
+the build output, the packages and the Prisma files, with tini passing
+shutdown signals to the server. Installing with `npm ci` from the committed
+lock file means every build gets the same package versions. Following the
+Workshop 7 lab, a start-up script applies the Prisma migrations; it also seeds
+only an empty database so a teacher's data is never overwritten. The database
+lives in a volume, and the container reports its health through the `/health`
+endpoint.
 
 **Trade-offs.** SQLite was chosen over PostgreSQL because it needs no separate
 server, which keeps the app in a single container and simple to run for

@@ -1,80 +1,68 @@
-# syntax=docker/dockerfile:1
+# Dockerfile for the Phoneme Activity Builder.
 #
-# Multi-stage build for the Phoneme Activity Builder, following the official
-# Next.js Docker example: install dependencies, build, then copy only what
-# is needed into a small runtime image.
+# It follows the Workshop 6 lab pattern: a build stage and a production stage,
+# both on node:lts-alpine, with tini as the entrypoint and npm start to run
+# Next.js. The database steps follow the Workshop 7 lab: prisma generate at
+# build time, and entrypoint.sh applies the migrations when the container
+# starts.
 #
+#   docker compose up --build
+#
+# or without Compose:
 #   docker build -t phoneme-activity-builder .
 #   docker run -p 3000:3000 -v phoneme-data:/app/data phoneme-activity-builder
-#
-# or simply: docker compose up --build
 
-ARG NODE_VERSION=22-alpine
-
-# ---------- 1. Dependencies ----------
-FROM node:${NODE_VERSION} AS deps
-# libc6-compat helps native modules on Alpine; Prisma needs OpenSSL.
-RUN apk add --no-cache libc6-compat openssl
+# -------- Stage 1: Build --------
+FROM node:lts-alpine AS builder
+# Prisma needs OpenSSL to choose the right database engine on Alpine
+RUN apk add --no-cache openssl
 WORKDIR /app
-COPY package.json package-lock.json ./
-# npm ci runs "prisma generate" (postinstall), which needs the schema.
+COPY package*.json ./
+# Installing runs "prisma generate" afterwards, which needs the schema
 COPY prisma ./prisma
+# npm ci installs the exact versions in package-lock.json, so every build
+# gets the same packages
 RUN npm ci
-
-# ---------- 2. Build ----------
-FROM node:${NODE_VERSION} AS builder
-RUN apk add --no-cache openssl
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-# Build the standalone Next.js server and bundle the seed script.
-RUN npx prisma generate \
- && npm run build \
- && npm run build:seed
+RUN npx prisma generate
+RUN npm run build
+# Bundle the seed script into one file so the container can seed the database
+RUN npm run build:seed
 
-# ---------- 3. Runtime ----------
-FROM node:${NODE_VERSION} AS runner
-RUN apk add --no-cache openssl
+# -------- Stage 2: Production --------
+FROM node:lts-alpine
+# Install tini for proper signal handling, and OpenSSL for Prisma
+RUN apk add --no-cache tini openssl
+ENV NODE_ENV=production
+# The SQLite database file lives in /app/data, which is kept in a volume
+ENV DATABASE_URL=file:/app/data/app.db
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    CHECKPOINT_DISABLE=1 \
-    PRISMA_HIDE_UPDATE_MESSAGE=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0 \
-    DATABASE_URL=file:/app/data/app.db
-
-# The Prisma CLI applies migrations when the container starts.
-RUN npm install -g prisma@6.19.3 && npm cache clean --force
-
-# Run as an unprivileged user rather than root.
-RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 nextjs
-
+# Copy only the output we need
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Prisma schema and migrations, and the bundled seed script
 COPY --from=builder /app/prisma ./prisma
-# Make sure the Prisma client and its Linux query engine are present.
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
-COPY --from=builder /app/dist/seed.cjs ./dist/seed.cjs
-COPY docker-entrypoint.sh ./
+COPY --from=builder /app/dist ./dist
 
-# The SQLite database lives in /app/data, which is kept in a volume.
-RUN sed -i 's/\r$//' docker-entrypoint.sh \
- && chmod +x docker-entrypoint.sh \
- && mkdir -p /app/data \
- && chown -R nextjs:nodejs /app/data
+# Start-up script (Workshop 7 pattern). sed strips Windows line endings so it
+# still runs when the project was checked out on Windows.
+COPY entrypoint.sh ./
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
-USER nextjs
-EXPOSE 3000
-VOLUME ["/app/data"]
+VOLUME /app/data
 
+# Docker marks the container healthy while /health returns 200 OK
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/health > /dev/null || exit 1
 
-ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["node", "server.js"]
+# Use tini as entrypoint
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# Expose Next.js port
+EXPOSE 3000
+
+# Apply migrations, seed an empty database, then npm start
+CMD ["/bin/sh", "/app/entrypoint.sh"]
