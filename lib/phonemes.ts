@@ -5,7 +5,7 @@
  *
  * Each phoneme pairs an HCE/IPA symbol with the English letter equivalence a
  * Speech Pathology student would recognise, plus an example word so hints
- * can read "/θ/ — TH (as in thin)".
+ * can read "/θ/: TH (as in thin)".
  */
 
 export type PhonemeType = "consonant" | "vowel";
@@ -92,14 +92,14 @@ export const PHONEME_MAP: ReadonlyMap<string, Phoneme> = new Map(
   PHONEMES.map((p) => [p.ipa, p])
 );
 
-/** "/θ/ — TH (as in thin)" */
+/** "/θ/: TH (as in thin)" */
 export function hintFor(ipa: string): string {
   const p = PHONEME_MAP.get(ipa);
   if (!p) return `/${ipa}/`;
-  return `/${p.ipa}/ — ${p.label} (as in ${p.example})`;
+  return `/${p.ipa}/: ${p.label} (as in ${p.example})`;
 }
 
-/** "/θɪn/" — a word rendered as a single IPA string */
+/** "/θɪn/": a word rendered as a single IPA string */
 export function ipaWord(phonemes: string[]): string {
   return `/${phonemes.join("")}/`;
 }

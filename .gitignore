@@ -53,3 +53,15 @@ next-env.d.ts
 
 # walkthrough video - contains student ID, keep OFF public GitHub
 public/how-to-use.mp4
+
+# Local SQLite database files
+prisma/*.db
+prisma/*.db-journal
+# .env holds only the local SQLite path, so it is committed on purpose
+!.env
+
+# Build output for the Docker seed script
+/dist
+
+# Personal notes from Assessment 1 (not part of the app)
+/a1-notes

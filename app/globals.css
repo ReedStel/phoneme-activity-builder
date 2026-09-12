@@ -3,7 +3,7 @@
 /* Class-based dark mode so the theme can be driven by the cookie-backed setting */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Warm "classroom stationery" palette — light mode */
+/* Warm "classroom stationery" palette: light mode */
 :root {
   --background: #faf6ef;
   --surface: #fffdf8;

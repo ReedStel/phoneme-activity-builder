@@ -1,6 +1,6 @@
 import { NavBar } from "./NavBar";
 
-/** Speech-bubble logo mark holding a phoneme — the app's identity. */
+/** Speech-bubble logo mark holding a phoneme: the app's identity. */
 function LogoMark() {
   return (
     <svg
@@ -41,7 +41,7 @@ export function Header() {
               Phoneme Activity Builder
             </h1>
             <p className="text-xs font-semibold uppercase tracking-wider text-accent">
-              Assessment 1 · Frontend Design &amp; Usability
+              Assessment 2 · Backend &amp; Database Integration
             </p>
           </div>
         </div>

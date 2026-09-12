@@ -1,8 +1,9 @@
 /**
  * Builds the standalone, single-file phoneme Word Search activity.
  *
- * The exact grid shown in the builder preview is embedded (via the shared
- * seed-generated grid), so what the teacher previews is what students play.
+ * The exact grid shown in the builder preview is embedded (both come from
+ * the same seeded generator), so what the teacher previews is what
+ * students play.
  */
 
 import { PHONEME_MAP } from "../phonemes";
@@ -17,6 +18,8 @@ export interface WordSearchConfig {
   allowDiagonals: boolean;
   showHints: boolean;
   seed: number;
+  /** Difficulty label chosen by the teacher, shown in the subtitle */
+  difficulty?: string;
 }
 
 const WS_CSS = `
@@ -25,7 +28,7 @@ const WS_CSS = `
   .ws-cell {
     width: 2.6rem; height: 2.6rem; border: 1px solid var(--border);
     border-radius: 0.375rem; background: var(--surface); color: var(--fg);
-    font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    font-size: 0.95rem; font-weight: 600;
     display: flex; align-items: center; justify-content: center;
   }
   @media (max-width: 480px) { .ws-cell { width: 2.1rem; height: 2.1rem; font-size: 0.8rem; } }
@@ -36,7 +39,7 @@ const WS_CSS = `
   .ws-cell.sol { background: var(--accent-soft); border-color: var(--present); }
   .answers-btn {
     border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface);
-    color: var(--fg); padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    color: var(--fg); padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600;
   }
   .answers-btn:hover { border-color: var(--accent); }
   .word-list { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; list-style: none; padding: 0; margin: 0; }
@@ -56,9 +59,13 @@ const gridEl = document.getElementById("grid");
 const status = document.getElementById("status");
 gridEl.style.gridTemplateColumns = "repeat(" + CONFIG.gridSize + ", auto)";
 
+function escapeText(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+
 function hintText(ipa) {
   const h = CONFIG.hints[ipa];
-  return h ? "/" + ipa + "/ \\u2014 " + h : "/" + ipa + "/";
+  return h ? "/" + ipa + "/: " + h : "/" + ipa + "/";
 }
 
 function buildGrid() {
@@ -94,7 +101,7 @@ function onCell(r, c, btn) {
   clearSelection();
   start = null;
   if (!path) {
-    status.textContent = "Selections must be in a straight line — try again.";
+    status.textContent = "Selections must be in a straight line. Try again.";
     return;
   }
   checkPath(path);
@@ -122,22 +129,24 @@ function samePath(a, b) {
 
 function checkPath(path) {
   const reversed = [...path].reverse();
-  for (const placement of CONFIG.placements) {
-    if (found.has(placement.word.english)) continue;
+  for (let i = 0; i < CONFIG.placements.length; i++) {
+    const placement = CONFIG.placements[i];
+    if (found.has(i)) continue;
     if (samePath(path, placement.cells) || samePath(reversed, placement.cells)) {
-      markFound(placement);
+      markFound(i);
       return;
     }
   }
-  status.textContent = "That is not one of the hidden words — keep looking!";
+  status.textContent = "That is not one of the hidden words. Keep looking!";
 }
 
-function markFound(placement) {
-  found.add(placement.word.english);
+function markFound(index) {
+  const placement = CONFIG.placements[index];
+  found.add(index);
   placement.cells.forEach(([r, c]) => cellEl(r, c).classList.add("found"));
-  const li = document.getElementById("word-" + placement.word.english);
+  const li = document.getElementById("word-" + index);
   li.classList.add("found");
-  li.innerHTML = "/" + placement.word.phonemes.join("") + '/ <span class="eng">= \\u201C' + placement.word.english + '\\u201D</span>';
+  li.innerHTML = "/" + placement.word.phonemes.join("") + '/ <span class="eng">= \\u201C' + escapeText(placement.word.english) + '\\u201D</span>';
   if (found.size === CONFIG.placements.length) {
     status.textContent = "Fantastic! You found all " + CONFIG.placements.length + " phoneme words!";
     status.className = "status win";
@@ -149,9 +158,9 @@ function markFound(placement) {
 
 function buildWordList() {
   const list = document.getElementById("words");
-  CONFIG.placements.forEach((p) => {
+  CONFIG.placements.forEach((p, i) => {
     const li = document.createElement("li");
-    li.id = "word-" + p.word.english;
+    li.id = "word-" + i;
     li.textContent = "/" + p.word.phonemes.join("") + "/";
     list.appendChild(li);
   });
@@ -172,10 +181,11 @@ buildGrid();
 buildWordList();
 `;
 
-export function buildWordSearchHtml(
-  config: WordSearchConfig,
-  generated: WordSearchGrid
-): string {
+function capitalise(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function buildWordSearchHtml(config: WordSearchConfig, generated: WordSearchGrid): string {
   // Only ship the hints actually used on this grid.
   const hints: Record<string, string> = {};
   for (const row of generated.grid) {
@@ -184,11 +194,11 @@ export function buildWordSearchHtml(
       if (p) hints[ipa] = `${p.label} (as in ${p.example})`;
     }
   }
+  const level = config.difficulty ? `${capitalise(config.difficulty)} level. ` : "";
 
   return htmlShell({
     title: config.title,
-    subtitle:
-      "Find every phoneme word hidden in the grid. Click the first phoneme of a word, then the last one.",
+    subtitle: `${level}Find all ${generated.placements.length} phoneme words hidden in the grid. Click the first phoneme of a word, then the last one.`,
     css: WS_CSS,
     bodyMain: `
 <ul id="words" class="word-list" aria-label="Words to find"></ul>
@@ -204,14 +214,11 @@ export function buildWordSearchHtml(
       hints,
     }),
     script: WS_JS,
-    credit:
-      "Phoneme Word Search — generated with the Phoneme Activity Builder · Reed Stelfox · 22813726",
+    credit: "Phoneme Word Search · made with the Phoneme Activity Builder · Reed Stelfox · 22813726",
   });
 }
 
-export function wordSearchFilename(config: WordSearchConfig): string {
+export function wordSearchFilename(config: Pick<WordSearchConfig, "title">): string {
   const slug = slugify(config.title);
-  return slug.endsWith("word-search")
-    ? `${slug}.html`
-    : `${slug}-word-search.html`;
+  return slug.endsWith("word-search") ? `${slug}.html` : `${slug}-word-search.html`;
 }

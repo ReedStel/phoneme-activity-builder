@@ -86,7 +86,7 @@ export function buildWordSearch(
     return { size, grid: filled, placements };
   }
 
-  throw new Error("Could not fit all words on the grid — increase the grid size.");
+  throw new Error("Could not fit all words on the grid. Increase the grid size.");
 }
 
 function tryPlaceWord(
