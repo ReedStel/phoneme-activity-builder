@@ -241,6 +241,20 @@ scripts/
 Dockerfile  docker-compose.yml  docker-entrypoint.sh
 ```
 
+## Repository workflow
+
+- `main` holds the stable version that gets submitted.
+- From Assessment 2 onwards each assessment's work lives on its own branch
+  (`assessment-2`), built up in small, focused commits (database, API, pages,
+  Docker, documentation) and merged into `main` with a merge commit, so the
+  history shows where each piece of work came in. Assessment 1 was committed
+  directly to `main`.
+- Tags mark exactly what was submitted: `a1-submission` (frontend) and
+  `a2-submission` (backend, database and Docker). View one with
+  `git checkout a1-submission`.
+- `node_modules`, build output, the local database file and the walkthrough
+  video are kept out of the repository by `.gitignore`.
+
 ## The how-to-use video
 
 The walkthrough video is embedded on the About page and loads from
