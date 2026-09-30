@@ -65,3 +65,10 @@ prisma/*.db-journal
 
 # Personal notes from Assessment 1 (not part of the app)
 /a1-notes
+
+# Test and audit output (curated evidence is committed under docs/evidence)
+/reports
+/test-results
+/playwright-report
+/playwright/.cache
+/load-tests/results
