@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { recordActivityEvent } from "@/lib/metrics";
 import { ApiError, handle, ok, parseBody } from "@/lib/api";
 import { activityInclude, serializeActivity, validateActivitySelection } from "@/lib/activities";
 import { ACTIVITY_TYPES, activityInputSchema, type ActivityType } from "@/lib/validation";
@@ -8,7 +9,7 @@ import { ACTIVITY_TYPES, activityInputSchema, type ActivityType } from "@/lib/va
  * Filter by type with ?type=WORDLE or ?type=WORDSEARCH.
  */
 export function GET(req: Request) {
-  return handle(async () => {
+  return handle(req, async () => {
     const type = new URL(req.url).searchParams.get("type");
     if (type !== null && !ACTIVITY_TYPES.includes(type as ActivityType)) {
       throw new ApiError(400, "type must be WORDLE or WORDSEARCH");
@@ -24,7 +25,7 @@ export function GET(req: Request) {
 
 /** POST /api/activities - save a new Wordle or Word Search configuration. */
 export function POST(req: Request) {
-  return handle(async () => {
+  return handle(req, async () => {
     const input = await parseBody(req, activityInputSchema);
     await validateActivitySelection({
       type: input.type,
@@ -49,6 +50,12 @@ export function POST(req: Request) {
         },
       },
       include: activityInclude,
+    });
+    recordActivityEvent({
+      entity: "activity",
+      entityId: activity.id,
+      action: "created",
+      detail: `${activity.type}: ${activity.title}`,
     });
     return ok(serializeActivity(activity), 201);
   });

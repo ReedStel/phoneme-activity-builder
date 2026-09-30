@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { recordActivityEvent } from "@/lib/metrics";
 import { ApiError, handle, ok, parseBody, parseId } from "@/lib/api";
 import { activityInclude, serializeActivity, validateActivitySelection } from "@/lib/activities";
 import { activityUpdateSchema, type ActivityType } from "@/lib/validation";
@@ -6,8 +7,8 @@ import { activityUpdateSchema, type ActivityType } from "@/lib/validation";
 type Ctx = { params: Promise<{ id: string }> };
 
 /** GET /api/activities/:id */
-export function GET(_req: Request, { params }: Ctx) {
-  return handle(async () => {
+export function GET(req: Request, { params }: Ctx) {
+  return handle(req, async () => {
     const id = parseId((await params).id);
     const activity = await prisma.activityConfig.findUnique({
       where: { id },
@@ -20,7 +21,7 @@ export function GET(_req: Request, { params }: Ctx) {
 
 /** PATCH /api/activities/:id - update any subset of an activity's settings or words. */
 export function PATCH(req: Request, { params }: Ctx) {
-  return handle(async () => {
+  return handle(req, async () => {
     const id = parseId((await params).id);
     const input = await parseBody(req, activityUpdateSchema);
 
@@ -71,15 +72,27 @@ export function PATCH(req: Request, { params }: Ctx) {
         include: activityInclude,
       });
     });
+    recordActivityEvent({
+      entity: "activity",
+      entityId: id,
+      action: "updated",
+      detail: `${activity.type}: ${activity.title}`,
+    });
     return ok(serializeActivity(activity));
   });
 }
 
 /** DELETE /api/activities/:id */
-export function DELETE(_req: Request, { params }: Ctx) {
-  return handle(async () => {
+export function DELETE(req: Request, { params }: Ctx) {
+  return handle(req, async () => {
     const id = parseId((await params).id);
-    await prisma.activityConfig.delete({ where: { id } });
+    const deleted = await prisma.activityConfig.delete({ where: { id } });
+    recordActivityEvent({
+      entity: "activity",
+      entityId: id,
+      action: "deleted",
+      detail: `${deleted.type}: ${deleted.title}`,
+    });
     return ok({ deleted: id });
   });
 }
