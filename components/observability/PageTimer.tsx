@@ -29,7 +29,9 @@ function sessionId() {
  */
 export function PageTimer() {
   const pathname = usePathname();
-  const visibleSince = useRef(Date.now());
+  // Set inside the effect, not here: reading the clock during render is
+  // impure and React can re-render at any time.
+  const visibleSince = useRef(0);
   const accumulated = useRef(0);
   const sent = useRef(false);
 
