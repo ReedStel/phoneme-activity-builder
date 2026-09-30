@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CSE3CWA Assessment 3 summary - Reed Stelfox</title>
+    <style>
+      @page { size: A4; margin: 18mm 16mm; }
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.45;
+        color: #16181d;
+      }
+      h1 { font-size: 17pt; margin: 0 0 2px; }
+      h2 { font-size: 12pt; margin: 16px 0 6px; border-bottom: 1px solid #cfd4dc; padding-bottom: 3px; }
+      p, li { margin: 4px 0; }
+      ul { margin: 4px 0 4px 18px; padding: 0; }
+      .meta { color: #495057; font-size: 9.5pt; margin-bottom: 10px; }
+      table { border-collapse: collapse; width: 100%; font-size: 9.5pt; margin: 6px 0; }
+      th, td { border: 1px solid #cfd4dc; padding: 4px 6px; text-align: left; }
+      th { background: #f1f3f5; }
+      td.n, th.n { text-align: right; }
+      code { font-family: Consolas, monospace; font-size: 9.5pt; }
+      .refs p { text-indent: -16px; padding-left: 16px; font-size: 9.5pt; margin: 5px 0; }
+      .note { background: #f8f9fa; border-left: 3px solid #adb5bd; padding: 6px 10px; margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Phoneme Activity Builder: data-driven application and reporting</h1>
+    <p class="meta">
+      Reed Stelfox &middot; Student No. 22813726 &middot; CSE3CWA Assessment 3 &middot; 4 October 2026<br />
+      Repository: https://github.com/ReedStel/phoneme-activity-builder
+    </p>
+
+    <p>
+      The Phoneme Activity Builder lets Speech Pathology teachers build phoneme-based Wordle and
+      Word Search activities from Australian English (HCE) phonemes and generate each one as a
+      single playable HTML file. Assessment 1 built the interface, Assessment 2 added the database,
+      the REST API and Docker. Assessment 3 makes the system data-driven: it now records what it
+      does and reports on it, and that reporting is backed by end-to-end tests, load tests and
+      accessibility audits. This document summarises the work; the video walkthrough demonstrates it.
+    </p>
+
+    <h2>What was added</h2>
+    <ul>
+      <li><strong>Four reporting tables</strong> (one migration): page views, generation events, an
+        audit trail of every create, update and delete, and a log of every API call. They are
+        append-only records with no foreign keys, because deleting an activity must not delete the
+        evidence that it existed, was used, or failed.</li>
+      <li><strong>Instrumentation</strong>: the shared route wrapper times every API call and stores
+        its method, path, status and duration; the generate endpoint records each attempt with its
+        outcome, duration and, when it fails, the reason; writes to lists, words and activities are
+        audited; and the browser reports how long each page stayed open using <code>sendBeacon</code>.
+        All recording is fire and forget, so a metric can never slow down or break a teacher request.</li>
+      <li><strong>A dashboard</strong> at <code>/dashboard</code>: health and database latency, alerts,
+        eight statistics (activities stored by type, files generated, failures and success rate,
+        average time on page, most-used activity type, API traffic and error rate, stored totals), a
+        14-day chart with a screen-reader table, four reporting tables and a CSV export.</li>
+      <li><strong>Supporting endpoints</strong>: <code>/api/metrics/summary</code> (JSON),
+        <code>/api/metrics/report</code> (CSV), <code>/api/metrics/page-view</code> (browser beacon),
+        and a richer <code>/health</code> that still returns 200 OK with database status.</li>
+      <li><strong>A simulated usage generator</strong>, so the reporting views have a realistic history
+        on a fresh install or in a new container.</li>
+    </ul>
+
+    <h2>Testing and audit results</h2>
+    <table>
+      <tr><th>Check</th><th>Tool</th><th>Result</th></tr>
+      <tr><td>API contracts</td><td>Custom smoke test</td><td>53 of 53 checks pass</td></tr>
+      <tr><td>Builder and user journeys</td><td>Playwright (Chromium)</td><td>7 of 7 tests pass</td></tr>
+      <tr><td>Accessibility</td><td>Lighthouse</td><td>100 on the dashboard, word lists and Wordle pages</td></tr>
+      <tr><td>Behaviour under load</td><td>Apache JMeter 5.6.3</td><td>See the table below</td></tr>
+    </table>
+
+    <p>
+      The Playwright suite covers the builder use case (create a word list, add a word with the
+      phoneme keyboard, have a duplicate rejected, edit it, reload the page to prove the data came
+      from the database, then delete it), the user use case (generate an activity file and confirm
+      the file the server built contains the stored title and words) and observability (the
+      dashboard, the health endpoint, and a generation being counted).
+    </p>
+
+    <h2>Load testing</h2>
+    <p>
+      One JMeter plan was run at each level against a production build. New users arrive at 50 per
+      second and each makes the same single pass of five requests: the health check, the word lists
+      API, the activities API, generating an activity file, and the dashboard page.
+    </p>
+    <table>
+      <tr>
+        <th>Users</th><th class="n">Samples</th><th class="n">Error rate</th>
+        <th class="n">Average</th><th class="n">95th percentile</th><th class="n">Throughput</th>
+      </tr>
+      <tr><td>1</td><td class="n">5</td><td class="n">0.0%</td><td class="n">14 ms</td><td class="n">27 ms</td><td class="n">70.4 req/s</td></tr>
+      <tr><td>10</td><td class="n">50</td><td class="n">0.0%</td><td class="n">24 ms</td><td class="n">64 ms</td><td class="n">53.6 req/s</td></tr>
+      <tr><td>100</td><td class="n">500</td><td class="n">0.0%</td><td class="n">318 ms</td><td class="n">997 ms</td><td class="n">122.1 req/s</td></tr>
+      <tr><td>1,000</td><td class="n">5,000</td><td class="n">0.0%</td><td class="n">4,539 ms</td><td class="n">20,228 ms</td><td class="n">116.5 req/s</td></tr>
+      <tr><td>10,000</td><td class="n">50,000</td><td class="n">18.4%</td><td class="n">28,097 ms</td><td class="n">60,009 ms</td><td class="n">121.2 req/s</td></tr>
+    </table>
+
+    <p>
+      Throughput settles at about 120 requests per second from 100 users upwards, which is the
+      capacity of one Node process in front of one SQLite file. Beyond that, arrivals exceed
+      capacity, so requests queue and the wait grows in proportion to the queue: 318 ms at 100
+      users, 4.5 seconds at 1,000 and 28 seconds at 10,000. Nothing failed up to 1,000 users. At
+      10,000 users, 9,164 of the 9,219 failures were the dashboard page timing out at 60 seconds,
+      because it runs about twenty aggregate queries per render, while the four API endpoints
+      stayed between 16 and 20 seconds with single-digit error counts.
+    </p>
+    <div class="note">
+      The instrumentation degraded before the application did. The server logged 198 dropped metric
+      writes (Prisma <code>P1008</code>, socket timeout) while continuing to serve requests, which
+      is the intended behaviour: recording is fire and forget, so observability is sacrificed under
+      pressure rather than the teacher&rsquo;s request. The cheapest fix by a wide margin is to
+      cache the dashboard aggregates for a few seconds; the structural fix is PostgreSQL, which
+      Prisma reduces to a schema and connection-string change.
+    </div>
+
+    <h2>Accessibility</h2>
+    <p>
+      Lighthouse scored 100, but the report still flagged a genuine defect: a phoneme key displayed
+      &ldquo;/p/ P&rdquo; while announcing itself as &ldquo;/p/: P (as in pond)&rdquo;. That breaks
+      WCAG 2.5.3 Label in Name (W3C, 2023), because somebody using speech control cannot say what
+      they see. The accessible name of every key, and of the chips that remove a phoneme, now begins
+      with the text printed on it, and a re-audit reports no failing audits at all. The daily chart
+      also carries a screen-reader table of the same numbers, because a picture of data is no use to
+      a person who cannot see it.
+    </p>
+
+    <h2>Design decisions</h2>
+    <ul>
+      <li><strong>Events, not counters.</strong> A counter cannot answer when or why. Storing events
+        allows the dashboard to show trends over a chosen window and to explain each failure.</li>
+      <li><strong>Reporting must not cost the user anything.</strong> Metric writes are not awaited,
+        and <code>METRICS_DISABLED=1</code> turns them off for a clean load-test baseline.</li>
+      <li><strong>Privacy.</strong> A page view stores a random per-tab identifier, a path and a
+        duration. No personal data is collected.</li>
+      <li><strong>SQLite.</strong> Keeping one file database means the whole system runs in a single
+        container, which suits a single-teacher tool. The load results show where that choice stops
+        scaling, and Prisma makes a move to PostgreSQL a small change.</li>
+    </ul>
+
+    <h2>Artificial intelligence acknowledgement</h2>
+    <p>
+      Full AI use is permitted for this assessment. I used Claude (Claude Code) to extend my
+      Assessment 2 project, directing the work in stages: the observability tables and migration, the
+      instrumentation, the dashboard and CSV export, the simulated usage generator, the Playwright
+      tests, the JMeter plan and the documentation. I reviewed and tested the output myself, ran the
+      test suites, the load tests and the accessibility audits, had the accessibility defect that
+      Lighthouse found fixed and re-audited, and recorded the video walkthrough and explanation in my
+      own words.
+    </p>
+
+    <h2>References</h2>
+    <div class="refs">
+      <p>Apache Software Foundation. (n.d.). <em>Apache JMeter user manual</em>. Retrieved September 30, 2026, from https://jmeter.apache.org/usermanual/index.html</p>
+      <p>Beyer, B., Jones, C., Petoff, J., &amp; Murphy, N. R. (2016). <em>Site reliability engineering: How Google runs production systems</em>. O&rsquo;Reilly Media.</p>
+      <p>Codd, E. F. (1970). A relational model of data for large shared data banks. <em>Communications of the ACM, 13</em>(6), 377-387. https://doi.org/10.1145/362384.362685</p>
+      <p>Few, S. (2006). <em>Information dashboard design: The effective visual communication of data</em>. O&rsquo;Reilly Media.</p>
+      <p>Fielding, R. T. (2000). <em>Architectural styles and the design of network-based software architectures</em> [Doctoral dissertation, University of California, Irvine]. https://ics.uci.edu/~fielding/pubs/dissertation/top.htm</p>
+      <p>Google. (n.d.). <em>Lighthouse accessibility scoring</em>. Chrome for Developers. Retrieved September 30, 2026, from https://developer.chrome.com/docs/lighthouse/accessibility/scoring</p>
+      <p>Harrington, J., Cox, F., &amp; Evans, Z. (1997). An acoustic phonetic study of broad, general, and cultivated Australian English vowels. <em>Australian Journal of Linguistics, 17</em>(2), 155-184. https://doi.org/10.1080/07268609708599550</p>
+      <p>Microsoft. (n.d.). <em>Playwright: Writing tests</em>. Retrieved September 30, 2026, from https://playwright.dev/docs/writing-tests</p>
+      <p>Nielsen, J. (1994, April 24). <em>10 usability heuristics for user interface design</em>. Nielsen Norman Group. https://www.nngroup.com/articles/ten-usability-heuristics/</p>
+      <p>OWASP Foundation. (n.d.). <em>Input validation cheat sheet</em>. OWASP Cheat Sheet Series. Retrieved September 11, 2026, from https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html</p>
+      <p>Prisma Data. (n.d.). <em>Prisma ORM documentation</em>. Retrieved September 11, 2026, from https://www.prisma.io/docs/orm</p>
+      <p>Sridharan, C. (2018). <em>Distributed systems observability: A guide to building robust systems</em>. O&rsquo;Reilly Media.</p>
+      <p>Vercel. (n.d.). <em>Route handlers</em>. Next.js Docs. Retrieved September 11, 2026, from https://nextjs.org/docs/app/getting-started/route-handlers</p>
+      <p>W3C. (2023). <em>Web Content Accessibility Guidelines (WCAG) 2.2</em>. https://www.w3.org/TR/WCAG22/</p>
+    </div>
+  </body>
+</html>
