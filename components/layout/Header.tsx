@@ -41,7 +41,7 @@ export function Header() {
               Phoneme Activity Builder
             </h1>
             <p className="text-xs font-semibold uppercase tracking-wider text-accent">
-              Assessment 2 · Backend &amp; Database Integration
+              Assessment 3 · Data-driven Dashboard &amp; Reporting
             </p>
           </div>
         </div>

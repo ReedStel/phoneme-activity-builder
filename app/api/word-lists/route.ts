@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/db";
+import { recordActivityEvent } from "@/lib/metrics";
 import { handle, ok, parseBody } from "@/lib/api";
 import { wordInclude, toWordDto } from "@/lib/serialize";
 import { wordListInputSchema } from "@/lib/validation";
 import { assertKnownPhonemes, assertUniqueSpellings } from "@/lib/word-rules";
 
 /** GET /api/word-lists - every list with its word and activity counts. */
-export function GET() {
-  return handle(async () => {
+export function GET(req: Request) {
+  return handle(req, async () => {
     const lists = await prisma.wordList.findMany({
       orderBy: { id: "asc" },
       include: { _count: { select: { words: true, activities: true } } },
@@ -26,7 +27,7 @@ export function GET() {
 
 /** POST /api/word-lists - create a list, optionally with initial words. */
 export function POST(req: Request) {
-  return handle(async () => {
+  return handle(req, async () => {
     const input = await parseBody(req, wordListInputSchema);
     const words = input.words ?? [];
     await assertUniqueSpellings(null, words);
@@ -46,6 +47,12 @@ export function POST(req: Request) {
         },
       },
       include: { words: { include: wordInclude, orderBy: { id: "asc" } } },
+    });
+    recordActivityEvent({
+      entity: "wordList",
+      entityId: list.id,
+      action: "created",
+      detail: list.name,
     });
     return ok(
       {

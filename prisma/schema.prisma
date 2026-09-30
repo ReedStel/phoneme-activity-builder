@@ -102,3 +102,66 @@ model ActivityWord {
   @@unique([activityId, position])
   @@index([wordId])
 }
+
+// ---------------------------------------------------------------------------
+// Assessment 3: observability and reporting tables.
+//
+// The builder tables above record what a teacher has made. The tables below
+// record what the system has done, so the dashboard can report on usage and
+// health over time rather than only showing the current contents.
+// ---------------------------------------------------------------------------
+
+/// One visit to a page, with how long it stayed open (average time on page).
+model PageView {
+  id        Int      @id @default(autoincrement())
+  path      String // e.g. "/wordle"
+  sessionId String // random per browser tab, not a person
+  dwellMs   Int      @default(0) // time the page stayed visible
+  createdAt DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+}
+
+/// One attempt to build an activity file, successful or not.
+model GenerationEvent {
+  id           Int      @id @default(autoincrement())
+  activityId   Int? // null when the activity was deleted afterwards
+  activityType String // "WORDLE" | "WORDSEARCH"
+  status       String // "success" | "failure"
+  reason       String? // why a failure happened, e.g. "Word list is empty"
+  wordCount    Int      @default(0)
+  durationMs   Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([activityType])
+}
+
+/// Audit trail of create, update and delete actions on stored records, so
+/// creation counts survive even after a record is deleted.
+model ActivityEvent {
+  id        Int      @id @default(autoincrement())
+  entity    String // "activity" | "wordList" | "word"
+  entityId  Int?
+  action    String // "created" | "updated" | "deleted"
+  detail    String? // e.g. "WORDLE: Week 5 sounds"
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, action])
+}
+
+/// Server-side log of API calls, powering traffic and error-rate panels.
+model RequestLog {
+  id         Int      @id @default(autoincrement())
+  method     String
+  path       String
+  status     Int
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+}

@@ -25,6 +25,11 @@ export function PhonemeKey({
   disabled?: boolean;
 }) {
   const hint = hintFor(phoneme.ipa);
+  // WCAG 2.5.3, Label in Name: the accessible name has to start with the
+  // text a person can see on the key, so someone using speech control can
+  // say what they read. Lighthouse flagged the older "/p/: P (as in pond)"
+  // wording because the visible text is "/p/ P".
+  const accessibleName = `/${phoneme.ipa}/ ${phoneme.label} (as in ${phoneme.example})`;
   const stateClass = state
     ? STATE_CLASSES[state]
     : "bg-surface border-border hover:border-accent hover:bg-highlight";
@@ -35,11 +40,13 @@ export function PhonemeKey({
         type="button"
         onClick={() => onPress(phoneme.ipa)}
         disabled={disabled}
-        aria-label={hint}
+        aria-label={accessibleName}
         title={hint}
         className={`pressable flex min-h-12 min-w-12 flex-col items-center justify-center rounded-lg border-2 px-2 py-1 text-base font-bold leading-tight shadow-[0_2px_0_var(--border)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-40 disabled:shadow-none ${stateClass}`}
       >
-        /{phoneme.ipa}/
+        {/* The space matters: it makes the visible text "/p/ P", which is
+            what the accessible name starts with (WCAG 2.5.3). */}
+        /{phoneme.ipa}/{" "}
         <small
           className={`text-[0.65rem] font-medium ${state ? "text-white/80" : "text-muted"}`}
         >

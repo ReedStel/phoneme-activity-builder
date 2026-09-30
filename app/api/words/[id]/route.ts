@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { recordActivityEvent } from "@/lib/metrics";
 import { ApiError, handle, ok, parseBody, parseId } from "@/lib/api";
 import { wordInclude, toWordDto } from "@/lib/serialize";
 import { wordUpdateSchema } from "@/lib/validation";
@@ -7,8 +8,8 @@ import { assertKnownPhonemes, assertUniqueSpellings } from "@/lib/word-rules";
 type Ctx = { params: Promise<{ id: string }> };
 
 /** GET /api/words/:id */
-export function GET(_req: Request, { params }: Ctx) {
-  return handle(async () => {
+export function GET(req: Request, { params }: Ctx) {
+  return handle(req, async () => {
     const id = parseId((await params).id);
     const word = await prisma.word.findUnique({ where: { id }, include: wordInclude });
     if (!word) throw new ApiError(404, `Word ${id} not found`);
@@ -18,7 +19,7 @@ export function GET(_req: Request, { params }: Ctx) {
 
 /** PATCH /api/words/:id - update the spelling and/or replace the phoneme sequence. */
 export function PATCH(req: Request, { params }: Ctx) {
-  return handle(async () => {
+  return handle(req, async () => {
     const id = parseId((await params).id);
     const input = await parseBody(req, wordUpdateSchema);
 
@@ -46,15 +47,17 @@ export function PATCH(req: Request, { params }: Ctx) {
         include: wordInclude,
       });
     });
+    recordActivityEvent({ entity: "word", entityId: id, action: "updated", detail: word.english });
     return ok(toWordDto(word));
   });
 }
 
 /** DELETE /api/words/:id - also removes the word from any activity that used it. */
-export function DELETE(_req: Request, { params }: Ctx) {
-  return handle(async () => {
+export function DELETE(req: Request, { params }: Ctx) {
+  return handle(req, async () => {
     const id = parseId((await params).id);
-    await prisma.word.delete({ where: { id } });
+    const deleted = await prisma.word.delete({ where: { id } });
+    recordActivityEvent({ entity: "word", entityId: id, action: "deleted", detail: deleted.english });
     return ok({ deleted: id });
   });
 }

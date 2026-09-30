@@ -26,8 +26,10 @@ RUN npm ci
 COPY . .
 RUN npx prisma generate
 RUN npm run build
-# Bundle the seed script into one file so the container can seed the database
+# Bundle the seed and simulation scripts so the container can fill an empty
+# database with the course word lists and a usage history for the dashboard
 RUN npm run build:seed
+RUN npm run build:simulate
 
 # -------- Stage 2: Production --------
 FROM node:lts-alpine

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { recordActivityEvent } from "@/lib/metrics";
 import { ApiError, handle, ok, parseId, readJson, validate } from "@/lib/api";
 import { wordInclude, toWordDto } from "@/lib/serialize";
 import { MAX_WORDS_PER_LIST, wordBatchSchema, wordInputSchema } from "@/lib/validation";
@@ -16,7 +17,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * stored and every problem is reported, numbered by word.
  */
 export function POST(req: Request, { params }: Ctx) {
-  return handle(async () => {
+  return handle(req, async () => {
     const listId = parseId((await params).id);
     const raw = await readJson(req);
     const isBatch = typeof raw === "object" && raw !== null && "words" in raw;
@@ -53,6 +54,12 @@ export function POST(req: Request, { params }: Ctx) {
       )
     );
     const dtos = created.map(toWordDto);
+    recordActivityEvent({
+      entity: "word",
+      entityId: dtos[0]?.id ?? null,
+      action: "created",
+      detail: isBatch ? `${dtos.length} words imported into list ${listId}` : dtos[0]?.english,
+    });
     return ok(isBatch ? { created: dtos.length, words: dtos } : dtos[0], 201);
   });
 }

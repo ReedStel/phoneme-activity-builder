@@ -1,6 +1,6 @@
 # Phoneme Activity Builder
 
-**Assessment 2: Backend Implementation and Database Integration**
+**Assessment 3: Data-driven Application and Reporting**
 Reed Stelfox · Student No. 22813726 · CSE3CWA
 
 A Next.js application that lets Speech Pathology teachers build phoneme-based
@@ -8,11 +8,14 @@ A Next.js application that lets Speech Pathology teachers build phoneme-based
 and activity settings in a database, and generate each activity as a single
 playable `.html` file that runs in any web browser.
 
-Assessment 1 built the frontend. Assessment 2 adds the backend: a Prisma
+Assessment 1 built the frontend. Assessment 2 added the backend: a Prisma
 schema on SQLite, a validated REST API with full create, read, update and
 delete (CRUD), server-side HTML generation from stored data, a `/health`
-endpoint, and a Docker image. The project was created with
-`npx create-next-app .` and extended from there.
+endpoint, and a Docker image. Assessment 3 makes it data-driven: the
+application now records what it does, and a dashboard reports usage, health
+and failures over time, supported by end-to-end tests, load tests and
+accessibility audits. The project was created with `npx create-next-app .`
+and extended from there.
 
 ---
 
@@ -24,6 +27,7 @@ Requires Node.js 22 or newer.
 npm install        # also runs "prisma generate"
 npm run setup      # creates the SQLite database, applies migrations, seeds data
 npm run dev        # http://localhost:3000
+npm run simulate   # optional: writes 14 days of simulated usage for the dashboard
 ```
 
 `npm run db:seed` resets the data to the seeded state at any time, and
@@ -65,8 +69,38 @@ exact versions in `package-lock.json`, so every build is the same, and a
 | `/word-lists` | Create, rename and delete word lists; add, edit, delete and bulk-import words |
 | `/wordle`     | Build, save, load and delete Wordle activities; generate the HTML file         |
 | `/wordsearch` | Build, save, load and delete Word Search activities; generate the HTML file    |
+| `/dashboard`  | Reporting and monitoring: usage statistics, alerts, charts and a CSV export   |
 | `/about`      | Project explanation, author details and the how-to-use video                  |
 | `/settings`   | Light, dark or system theme and layout density, stored in cookies             |
+
+## Dashboard and observability
+
+`/dashboard` is the reporting view. Everything on it is read from the
+database; nothing is estimated in the browser.
+
+| Panel | What it answers |
+| --- | --- |
+| Health strip | Is the app up, how fast did the database reply, how long has it been running |
+| Alerts | Failed generations in the last 24 hours, empty word lists, activities that can no longer generate |
+| Statistic cards | Activities stored by type, files generated, failures and success rate, average time on page, most-used activity type, API requests and error rate, stored totals |
+| Daily chart | Activities created and generation outcomes for each of the last 7, 14 or 30 days, with a screen-reader table of the same numbers |
+| Reporting tables | Time on page per page, slowest endpoints, recent failures with their reasons, recent changes |
+
+What gets recorded, and where:
+
+| Record | Written when | Table |
+| --- | --- | --- |
+| API call: method, path, status, duration | Every request through the shared route wrapper | `RequestLog` |
+| Generation attempt: type, outcome, reason, duration | Every call to the generate endpoint, successful or not | `GenerationEvent` |
+| Create, update or delete | Every write to a list, a word or an activity | `ActivityEvent` |
+| Time on page | When a page is hidden, closed or left, using `sendBeacon` | `PageView` |
+
+Recording never blocks a request: the writes are fire and forget, and
+`METRICS_DISABLED=1` turns them off for a clean load-test baseline. No
+personal data is stored, only a random per-tab id, a path and a duration.
+
+`npm run simulate` writes a realistic history so the reporting views have
+something to show on a fresh install.
 
 ## API reference
 
@@ -79,7 +113,10 @@ and the specific problems:
 
 | Method   | Path                                 | Purpose                                                         |
 | -------- | ------------------------------------ | --------------------------------------------------------------- |
-| `GET`    | `/health`                            | 200 OK when the server and database are up, 503 otherwise       |
+| `GET`    | `/health`                            | 200 OK with database latency and stored counts, 503 if the database is down |
+| `GET`    | `/api/metrics/summary?days=14`       | Everything the dashboard shows, as JSON                         |
+| `GET`    | `/api/metrics/report?days=14`        | The same figures as a CSV download                              |
+| `POST`   | `/api/metrics/page-view`             | Browser beacon recording how long a page stayed open            |
 | `GET`    | `/api/phonemes`                      | The 43-symbol HCE phoneme inventory                             |
 | `GET`    | `/api/word-lists`                    | All word lists with word and activity counts                    |
 | `POST`   | `/api/word-lists`                    | Create a list, optionally with initial words                    |
@@ -152,6 +189,37 @@ erDiagram
     int wordId PK
     int position
   }
+  PageView {
+    int id PK
+    string path
+    string sessionId
+    int dwellMs
+    datetime createdAt
+  }
+  GenerationEvent {
+    int id PK
+    int activityId
+    string activityType
+    string status
+    string reason
+    int durationMs
+    datetime createdAt
+  }
+  ActivityEvent {
+    int id PK
+    string entity
+    string action
+    string detail
+    datetime createdAt
+  }
+  RequestLog {
+    int id PK
+    string method
+    string path
+    int status
+    int durationMs
+    datetime createdAt
+  }
 ```
 
 - **Phoneme** is the reference inventory (43 HCE symbols). It holds the
@@ -170,9 +238,18 @@ erDiagram
 - Deleting a list cascades to its words and activities; deleting a word
   removes it from any activity that used it.
 
-Two migrations are included. The second shows schema evolution: it replaced a
-single `targetWordId` column with the `ActivityWord` join table and copies any
-existing target words across before the old column is dropped.
+- **PageView, GenerationEvent, ActivityEvent** and **RequestLog** are the
+  reporting tables added in Assessment 3. They are deliberately standalone,
+  append-only logs with no foreign keys: an event is a record of something
+  that happened, so deleting an activity must not delete the evidence that it
+  was created, used or failed. `GenerationEvent.activityId` is a plain number
+  for that reason, and each table is indexed on `createdAt` because every
+  dashboard query filters by date.
+
+Three migrations are included. The second shows schema evolution: it replaced
+a single `targetWordId` column with the `ActivityWord` join table and copies
+any existing target words across before the old column is dropped. The third
+adds the four reporting tables.
 
 ## Validation and error handling
 
@@ -198,9 +275,11 @@ Validation happens on both sides, and the server is the authority.
 In the browser the phoneme keyboard can only produce valid symbols, and the
 bulk import previews problems line by line before anything is sent.
 
-## Testing
+## Testing and audits
 
-With the dev server (or the Docker container) running:
+Four checks, each answering a different question.
+
+### 1. API smoke test: does every endpoint behave?
 
 ```bash
 npm run test:api
@@ -211,6 +290,49 @@ every CRUD route, phoneme normalisation, each validation rule, bulk import
 atomicity, activity rules, HTML generation from stored data, and cascade
 deletes. It creates its own list and removes it afterwards. Point it at
 another server with `BASE_URL=http://host:port npm run test:api`.
+
+### 2. Playwright: does it work in a real browser?
+
+```bash
+npm run test:e2e
+```
+
+Seven end-to-end tests in `e2e/` drive Chromium against a real server and a
+real database. The dev server starts automatically if it is not already
+running, and `npm run test:e2e:report` opens the HTML report.
+
+| Test file | What it proves |
+| --- | --- |
+| `builder-crud.spec.ts` | A teacher can create a list, add a word with the phoneme keyboard, get a clear error when adding a duplicate, edit the word, see it survive a full page reload, then delete the word and the list. |
+| `activity-generation.spec.ts` | Loading a saved activity and pressing Generate downloads an `.html` file, the file the server builds contains the stored title and words, and a missing activity returns 404 with a readable message instead of a crash. |
+| `dashboard-observability.spec.ts` | The dashboard shows health and statistics, `/health` returns 200 with database status, and generating a file increases the success counter, which proves the whole loop from browser to database to report. |
+
+### 3. JMeter: what happens under load?
+
+`load-tests/phoneme-builder.jmx` gives each simulated user the same five
+requests: the health check, the word lists API, the activities API,
+generating an activity file, and the dashboard page. The user count is a
+parameter, so one plan covers every load level:
+
+```bash
+jmeter -n -t load-tests/phoneme-builder.jmx -Jusers=100 -Jrampup=20 -Jloops=3 -l load-tests/results/run-100.csv
+```
+
+The measured results, and what they say about where the system starts to
+struggle, are in `docs/evidence/load-test-results.md`.
+
+### 4. Lighthouse: is it accessible?
+
+```bash
+npx lighthouse http://localhost:3000/dashboard --only-categories=accessibility --view
+```
+
+The dashboard, word lists and Wordle pages all score 100 for accessibility.
+The audit still flagged one real problem: a phoneme key showed "/p/ P" while
+its accessible name read "/p/: P (as in pond)", so somebody using speech
+control could not say what they saw (WCAG 2.5.3, Label in Name). The keys now
+announce exactly what is printed on them, and the chips that remove a phoneme
+do the same. Before and after reports are in `docs/evidence/`.
 
 ## Project structure
 
@@ -240,8 +362,19 @@ prisma/
   schema.prisma         Data model
   migrations/           Versioned SQL migrations
   seed.ts               Seeds the inventory, corpus lists and example activities
+  metrics.ts            Recording helpers and the dashboard aggregation
+app/
+  dashboard/            The reporting and monitoring page
+  api/metrics/          summary (JSON), report (CSV), page-view (browser beacon)
+components/
+  dashboard/            Stat cards, alerts, tables and the daily chart
+  observability/        PageTimer: how long each page stays open
 scripts/
   api-smoke-test.ts     End-to-end API checks
+  simulate-usage.ts     Writes a realistic usage history for the dashboard
+e2e/                    Playwright tests (builder, generation, dashboard)
+load-tests/             JMeter test plan
+docs/evidence/          Lighthouse reports and load-test results
 Dockerfile  docker-compose.yml  entrypoint.sh
 ```
 
@@ -340,6 +473,41 @@ only an empty database so a teacher's data is never overwritten. The database
 lives in a volume, and the container reports its health through the `/health`
 endpoint.
 
+**Observability and reporting.** A system that works is not the same as a
+system you can see working, so Assessment 3 adds a record of what the
+application does: every API call with its status and duration, every
+generation attempt with its outcome and the reason for any failure, every
+create, update and delete, and how long each page stays open. These are
+separate append-only tables rather than counters on the existing rows,
+because a counter cannot answer "when" or "why", and deleting an activity
+should not erase the fact that it once existed. Writes are fire and forget:
+a metric that fails, or is slow, must never affect the teacher who triggered
+it. The dashboard then answers the questions an operator actually asks,
+close to the four signals Beyer et al. (2016) describe: is it up (health and
+database latency), how much is it being used (activities, generations, page
+views), how fast is it (average response time and the slowest endpoints) and
+what is going wrong (failure counts with reasons, and alerts for empty lists
+or activities that can no longer generate). Following Few (2006), the
+numbers that need action sit at the top as plain figures with a short
+explanation of each, rather than being decorated with gauges.
+
+**Testing.** The three kinds of testing answer different questions and none
+of them replaces another. The API smoke test checks contracts quickly,
+Playwright drives a real browser so the interface and the database are
+exercised together, and JMeter shows what happens when many people arrive at
+once. The Playwright tests deliberately assert on a reload rather than on
+what is on screen immediately after an action, because that is the
+difference between "React updated" and "the database saved it".
+
+**Accessibility.** Lighthouse was run on the pages a teacher uses most. The
+score was already 100, but the report flagged a genuine mismatch between the
+visible text on the phoneme keys and their accessible name, which WCAG 2.5.3
+(W3C, 2023) exists to prevent: a speech-control user says what they see, so
+the name has to start with the visible text. Fixing it was a two-line change
+and made the keyboard usable by voice. The daily chart also carries a
+screen-reader table with the same numbers, because a picture of the data is
+no use to somebody who cannot see it.
+
 **Trade-offs.** SQLite was chosen over PostgreSQL because it needs no separate
 server, which keeps the app in a single container and simple to run for
 marking; the cost is limited write concurrency, which suits one teacher's
@@ -358,15 +526,28 @@ the phoneme-to-English hints reinforced on every key and every answer.
 
 ## References
 
+Apache Software Foundation. (n.d.). *Apache JMeter user manual*. Retrieved
+September 30, 2026, from https://jmeter.apache.org/usermanual/index.html
+
+Beyer, B., Jones, C., Petoff, J., & Murphy, N. R. (2016). *Site reliability
+engineering: How Google runs production systems*. O'Reilly Media.
+
 Codd, E. F. (1970). A relational model of data for large shared data banks.
 *Communications of the ACM, 13*(6), 377-387. https://doi.org/10.1145/362384.362685
 
 Docker Inc. (n.d.). *Multi-stage builds*. Docker Docs. Retrieved September 11,
 2026, from https://docs.docker.com/build/building/multi-stage/
 
+Few, S. (2006). *Information dashboard design: The effective visual
+communication of data*. O'Reilly Media.
+
 Fielding, R. T. (2000). *Architectural styles and the design of network-based
 software architectures* [Doctoral dissertation, University of California,
 Irvine]. https://ics.uci.edu/~fielding/pubs/dissertation/top.htm
+
+Google. (n.d.). *Lighthouse accessibility scoring*. Chrome for Developers.
+Retrieved September 30, 2026, from
+https://developer.chrome.com/docs/lighthouse/accessibility/scoring
 
 Harrington, J., Cox, F., & Evans, Z. (1997). An acoustic phonetic study of
 broad, general, and cultivated Australian English vowels. *Australian Journal
@@ -375,6 +556,9 @@ of Linguistics, 17*(2), 155-184. https://doi.org/10.1080/07268609708599550
 Merkel, D. (2014). Docker: Lightweight Linux containers for consistent
 development and deployment. *Linux Journal, 2014*(239), Article 2.
 https://dl.acm.org/doi/10.5555/2600239.2600241
+
+Microsoft. (n.d.). *Playwright: Writing tests*. Retrieved September 30, 2026,
+from https://playwright.dev/docs/writing-tests
 
 Nielsen, J. (1994, April 24). *10 usability heuristics for user interface
 design*. Nielsen Norman Group. https://www.nngroup.com/articles/ten-usability-heuristics/
@@ -386,8 +570,14 @@ https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html
 Prisma Data. (n.d.). *Prisma ORM documentation*. Retrieved September 11, 2026,
 from https://www.prisma.io/docs/orm
 
+Sridharan, C. (2018). *Distributed systems observability: A guide to building
+robust systems*. O'Reilly Media.
+
 Vercel. (n.d.). *Route handlers*. Next.js Docs. Retrieved September 11, 2026,
 from https://nextjs.org/docs/app/getting-started/route-handlers
+
+W3C. (2023). *Web Content Accessibility Guidelines (WCAG) 2.2*.
+https://www.w3.org/TR/WCAG22/
 
 ## GitHub repository
 
