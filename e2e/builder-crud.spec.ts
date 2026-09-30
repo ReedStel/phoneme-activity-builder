@@ -10,10 +10,10 @@ import { test, expect } from "@playwright/test";
 test("a teacher can create, read, update and delete a word list", async ({ page }) => {
   const listName = `Playwright list ${Date.now().toString().slice(-6)}`;
   const key = {
-    ch: "/tʃ/: CH (as in chin)",
-    i: "/ɪ/: I (as in bid)",
-    n: "/n/: N (as in nose)",
-    s: "/s/: S (as in sun)",
+    ch: "/tʃ/ CH (as in chin)",
+    i: "/ɪ/ I (as in bid)",
+    n: "/n/ N (as in nose)",
+    s: "/s/ S (as in sun)",
   };
 
   await page.goto("/word-lists");

@@ -35,7 +35,7 @@ export function PhonemeBuilder({
               key={`${ipa}-${i}`}
               type="button"
               onClick={() => onChange(value.filter((_, j) => j !== i))}
-              aria-label={`Remove phoneme ${i + 1}, ${hintFor(ipa)}`}
+              aria-label={`/${ipa}/ remove phoneme ${i + 1}, ${hintFor(ipa)}`}
               title={`${hintFor(ipa)}. Click to remove.`}
               className="inline-flex items-center gap-1 rounded-md border border-border bg-accent-soft px-2 py-1 font-mono text-sm font-semibold hover:border-red-400 focus-visible:outline-2 focus-visible:outline-accent"
             >
