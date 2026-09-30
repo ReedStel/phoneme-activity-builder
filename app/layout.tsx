@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Fraunces, Nunito_Sans } from "next/font/google";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
+import { PageTimer } from "@/components/observability/PageTimer";
 import { SettingsProvider } from "@/lib/settings";
 import {
   DENSITY_COOKIE,
@@ -27,7 +28,7 @@ const nunitoSans = Nunito_Sans({
 export const metadata: Metadata = {
   title: "Phoneme Activity Builder",
   description:
-    "Assessment 2: a database-backed builder for phoneme-based Wordle and Word Search classroom activities for Speech Pathology teaching.",
+    "A database-backed builder for phoneme-based Wordle and Word Search classroom activities for Speech Pathology teaching, with a reporting and monitoring dashboard.",
 };
 
 export default async function RootLayout({
@@ -68,6 +69,8 @@ export default async function RootLayout({
           />
         )}
         <SettingsProvider initialTheme={theme} initialDensity={density}>
+          {/* Records how long each page stays open, for the dashboard. */}
+          <PageTimer />
           <Header />
           <main
             className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6"
