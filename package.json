@@ -19,6 +19,7 @@
     "test:e2e:report": "playwright show-report",
     "simulate": "tsx scripts/simulate-usage.ts",
     "build:seed": "esbuild prisma/seed.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/seed.cjs --external:@prisma/client",
+    "build:simulate": "esbuild scripts/simulate-usage.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/simulate-usage.cjs --external:@prisma/client",
     "docker:up": "docker compose up --build"
   },
   "dependencies": {

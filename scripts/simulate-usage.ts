@@ -76,6 +76,16 @@ async function main() {
   const days = Math.min(Math.max(arg("days", 14), 1), 90);
   const reset = process.argv.includes("--reset");
 
+  // Used by the Docker entrypoint: only write a history into a database that
+  // has none, so a teacher's real usage is never buried under invented data.
+  if (process.argv.includes("--if-empty")) {
+    const existing = await prisma.pageView.count();
+    if (existing > 0) {
+      console.log(`Usage history already present (${existing} page views), skipping the simulation.`);
+      return;
+    }
+  }
+
   if (reset) {
     await prisma.$transaction([
       prisma.pageView.deleteMany(),
