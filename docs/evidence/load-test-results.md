@@ -98,3 +98,47 @@ thing sacrificed under pressure, not the last.
 For the intended use, one teacher preparing activities for a class, the
 measured capacity is far beyond what is needed. The purpose of the exercise
 was to find where it stops, and it stopped where the design predicted.
+
+## After caching the dashboard (Assessment 4)
+
+The results above pointed at one fix: the dashboard ran about twenty
+aggregate queries on every render. `getDashboardSummary()` in
+`lib/metrics.ts` now reuses a computed summary for five seconds, and requests
+that arrive together share one in-flight computation instead of each running
+the queries. The Refresh button still asks for fresh figures. The same plan
+was then run again, the same way, against a production build.
+
+| Users | Error rate before | Error rate after | Average before | Average after | Throughput before | Throughput after |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.0% | 0.0% | 14 ms | 34 ms | 70.4 req/s | 28.6 req/s |
+| 10 | 0.0% | 0.0% | 24 ms | 15 ms | 53.6 req/s | 57.3 req/s |
+| 100 | 0.0% | 0.0% | 318 ms | 84 ms | 122.1 req/s | 203.3 req/s |
+| 1,000 | 0.0% | 0.0% | 4,539 ms | 2,140 ms | 116.5 req/s | 127.2 req/s |
+| 10,000 | 18.4% | 3.3% | 28,097 ms | 25,626 ms | 121.2 req/s | 122.0 req/s |
+
+Per request at 10,000 users:
+
+| Request | Errors before | Errors after | Average after |
+| --- | ---: | ---: | ---: |
+| 01 Health check | 29 | 785 | 33,047 ms |
+| 02 Word lists API | 9 | 55 | 20,340 ms |
+| 03 Saved activities API | 4 | 8 | 23,725 ms |
+| 04 Generate activity file | 13 | 15 | 25,957 ms |
+| 05 Dashboard page | 9,164 | 808 | 25,060 ms |
+
+**What changed.** Failures at 10,000 users fell from 9,219 to 1,671, an 82%
+reduction, and dashboard failures fell by 91%. At 100 users the average
+response time dropped from 318 ms to 84 ms and throughput rose from 122 to
+203 requests a second, because dashboard renders no longer queue behind each
+other. At 1,000 users the average halved.
+
+**What did not change, honestly.** The hard ceiling at 10,000 users is still
+about 120 requests a second, because that is the limit of one Node process
+writing to one SQLite file, and the cache cannot remove it. With the dashboard
+no longer hogging the queue, the remaining timeouts are spread across every
+request, which is why the health check now shows more of them than before.
+The single-user figures are only five requests each and move around between
+runs, so they say nothing about the change.
+
+**Next step.** The ceiling itself needs PostgreSQL and more than one
+instance, which is the first item in the list above.
