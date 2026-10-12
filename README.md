@@ -19,6 +19,83 @@ and extended from there.
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser["Teacher's browser"]
+    UI["React pages<br/>Word Lists, Wordle, Word Search, Dashboard"]
+    Timer["PageTimer<br/>time on page"]
+  end
+
+  subgraph Container["Docker container: locally on :3000, on AWS EC2 on :80"]
+    Pages["Next.js pages<br/>rendered on the server"]
+    API["Route handlers /api/*<br/>handle(): validation, error mapping, request log"]
+    Lib["lib/<br/>validation, word rules, activity rules,<br/>HTML generators, metrics"]
+    Prisma["Prisma client"]
+    Health["GET /health"]
+  end
+
+  DB[("SQLite file<br/>Docker volume /app/data")]
+  File["Generated .html file<br/>students play it offline"]
+
+  UI -- "fetch, JSON" --> API
+  Timer -- "sendBeacon" --> API
+  UI -- "page requests" --> Pages
+  Pages --> Lib
+  API --> Lib
+  Lib --> Prisma --> DB
+  Health --> Prisma
+  API -- "download" --> File
+```
+
+Everything runs in one Next.js application in one container. The browser
+never touches the database: pages call the REST API, every route goes through
+the same `handle()` wrapper (validation, consistent JSON errors, request
+timing), the rules live in plain modules in `lib/` so they can be tested and
+reused, and Prisma is the only code that talks to SQLite. The database file
+sits in a Docker volume, so it survives restarts and rebuilds.
+
+### How a word list becomes a playable activity
+
+```mermaid
+sequenceDiagram
+  actor Teacher
+  participant B as Builder page (React)
+  participant A as API route
+  participant L as lib (rules, generator, metrics)
+  participant D as SQLite via Prisma
+  Teacher->>B: Choose a word list, tick words, Save
+  B->>A: POST /api/activities
+  A->>L: Check the shape (zod) and the word rules
+  L->>D: Create ActivityConfig and ActivityWord rows
+  A-->>B: 201 Created, with the activity id
+  Teacher->>B: Generate HTML
+  B->>A: GET /api/activities/:id/generate
+  A->>D: Load the activity, its words and their phonemes
+  A->>L: Re-check the rules, build the Wordle or seeded Word Search
+  L->>D: Record a GenerationEvent, success or failure
+  A-->>B: The .html file, as a download
+```
+
+The rules are checked again at generation time because a word can be edited
+or deleted after an activity is saved. The Word Search seed is stored, so the
+downloaded puzzle is exactly the one the teacher previewed.
+
+### How the project evolved
+
+| Stage | Git tag | What changed | Why |
+| --- | --- | --- | --- |
+| Assessment 1 | `a1-submission` | Frontend only: the builders, the phoneme keyboard, and an HTML file built in the browser from form values | The first goal was a usable interface for teachers |
+| Assessment 2 | `a2-submission` | Prisma on SQLite, a validated REST API, server-side generation from stored data, Docker | Work had to persist, and the generated file had to match what is stored |
+| Assessment 3 | `a3-submission` | Reporting tables, instrumentation, the dashboard, Playwright, JMeter and Lighthouse | To show the system is healthy and used, and to find its limits |
+| Assessment 4 | `a4-submission` | A short cache on the dashboard, and deployment to AWS EC2 | The load test showed the dashboard failing first; deployment follows the unit labs |
+
+Smaller changes along the way: a Wordle target column became the
+`ActivityWord` join table (the migration copies existing data across), the
+Dockerfile was rewritten to follow the Workshop 6 lab pattern, and the
+phoneme keys were fixed after Lighthouse flagged a WCAG 2.5.3 failure.
+
 ## Quick start (local)
 
 Requires Node.js 22 or newer.
@@ -72,6 +149,39 @@ exact versions in `package-lock.json`, so every build is the same, and a
 | `/dashboard`  | Reporting and monitoring: usage statistics, alerts, charts and a CSV export   |
 | `/about`      | Project explanation, author details and the how-to-use video                  |
 | `/settings`   | Light, dark or system theme and layout density, stored in cookies             |
+
+## Deploying to AWS EC2
+
+The app deploys the way the unit's Workshop 6 and 7 labs deploy: Docker on an
+EC2 instance in the AWS Academy Learner Lab, with the instance's port 80
+mapped to the app.
+
+1. Start the Learner Lab and open the AWS console.
+2. EC2, **Launch instance**:
+   - **AMI:** Amazon Linux 2023
+   - **Instance type:** `t3.medium` (`t3.small` also works; a `t2.micro` works
+     too but builds slowly)
+   - **Key pair:** `vockey`
+   - **Network settings:** allow SSH, and tick **Allow HTTP traffic from the
+     internet**
+   - **Storage:** 20 GiB
+   - **Advanced details, User data:** paste the whole of
+     [`deploy/ec2-user-data.sh`](deploy/ec2-user-data.sh)
+3. Launch, wait about eight minutes for the first build, then open
+   `http://<Public IPv4 DNS>/`. Use `http`, not `https`.
+
+The user-data script runs the lab's own steps on first boot (Docker, Buildx,
+Docker Compose, Git), clones this repository and runs
+`APP_PORT=80 docker-compose up -d --build`. It also adds swap so a small
+instance can finish the Next.js build. Its progress is in
+`/var/log/phoneme-setup.log`, and the app's own logs are in
+`docker logs phoneme-activity-builder`.
+
+**Learner Lab limits.** A lab session lasts four hours and stops the instance
+when it ends. Starting the lab again restarts the instance and Docker brings
+the container back by itself (`restart: unless-stopped`), but the public
+address changes, so copy the new one from the EC2 console. The database lives
+in a Docker volume on the instance's disk, so saved data survives a restart.
 
 ## Dashboard and observability
 
