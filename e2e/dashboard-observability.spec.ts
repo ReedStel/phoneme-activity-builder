@@ -33,7 +33,8 @@ test("/health returns 200 with database status", async ({ request }) => {
 });
 
 test("generating a file is counted by the dashboard", async ({ page, request }) => {
-  const summaryUrl = "/api/metrics/summary?days=1";
+  // fresh=1 skips the dashboard's short cache, so "before" is the true count.
+  const summaryUrl = "/api/metrics/summary?days=1&fresh=1";
   const before = await (await request.get(summaryUrl)).json();
 
   const activities = await (await request.get("/api/activities")).json();

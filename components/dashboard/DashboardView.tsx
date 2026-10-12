@@ -30,10 +30,13 @@ export function DashboardView({ initial }: { initial: DashboardSummary }) {
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (nextDays: number) => {
+  // Refresh asks for fresh figures; auto refresh and window changes accept
+  // the server's few-second cache, which is what keeps the page fast under load.
+  const load = useCallback(async (nextDays: number, fresh = false) => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/metrics/summary?days=${nextDays}`, { cache: "no-store" });
+      const url = `/api/metrics/summary?days=${nextDays}${fresh ? "&fresh=1" : ""}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`The server answered ${res.status}`);
       setSummary((await res.json()) as DashboardSummary);
       setError(null);
@@ -110,7 +113,7 @@ export function DashboardView({ initial }: { initial: DashboardSummary }) {
             />
             Auto refresh
           </label>
-          <button type="button" onClick={() => void load(days)} disabled={busy} className={btn.secondarySm}>
+          <button type="button" onClick={() => void load(days, true)} disabled={busy} className={btn.secondarySm}>
             {busy ? "Refreshing…" : "Refresh"}
           </button>
           <a href={`/api/metrics/report?days=${days}`} className={btn.secondarySm}>
@@ -232,7 +235,8 @@ export function DashboardView({ initial }: { initial: DashboardSummary }) {
 
       <p className="text-xs text-muted">
         Updated {formatTime(summary.generatedAt)}. Page timings come from the browser when a page is
-        closed or left; everything else is recorded on the server as it happens.
+        closed or left; everything else is recorded on the server as it happens. Figures are reused for
+        up to five seconds so the page stays fast under load; Refresh always fetches new ones.
       </p>
     </>
   );
