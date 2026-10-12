@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated output: test reports, load-test results and bundled scripts.
+    "reports/**",
+    "test-results/**",
+    "playwright-report/**",
+    "load-tests/results/**",
+    "dist/**",
   ]),
 ]);
 

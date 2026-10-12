@@ -72,3 +72,10 @@ prisma/*.db-journal
 /playwright-report
 /playwright/.cache
 /load-tests/results
+
+# Personal recording notes (not part of the app)
+/docs/video-script-print.html
+/docs/a4-qa-prep.html
+/docs/a4-demo-playbook.html
+/docs/a4-deploy-guide.html
+/docs/a4-recording-script.html

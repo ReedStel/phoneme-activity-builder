@@ -155,8 +155,34 @@ function emptySeries(days: number): DaySeries[] {
 const round = (n: number | null | undefined, places = 1) =>
   n === null || n === undefined ? null : Math.round(n * 10 ** places) / 10 ** places;
 
-/** Everything the dashboard shows, in one round of queries. */
-export async function getDashboardSummary(windowDays = 14): Promise<DashboardSummary> {
+/**
+ * How long a computed summary is reused.
+ *
+ * The Assessment 3 load test showed the dashboard failing first at 10,000
+ * users: 9,164 of the 9,219 errors, because every render ran about twenty
+ * aggregate queries. Reusing one result for a few seconds, and letting
+ * requests that arrive together share a single in-flight computation, removes
+ * that bottleneck while the figures stay effectively live.
+ */
+const SUMMARY_CACHE_MS = Number(process.env.DASHBOARD_CACHE_MS ?? 5000);
+const summaryCache = new Map<number, { at: number; value: Promise<DashboardSummary> }>();
+
+/** Everything the dashboard shows. Pass fresh to skip the short cache. */
+export function getDashboardSummary(
+  windowDays = 14,
+  options: { fresh?: boolean } = {}
+): Promise<DashboardSummary> {
+  const hit = summaryCache.get(windowDays);
+  if (!options.fresh && hit && Date.now() - hit.at < SUMMARY_CACHE_MS) return hit.value;
+
+  const value = buildDashboardSummary(windowDays);
+  summaryCache.set(windowDays, { at: Date.now(), value });
+  value.catch(() => summaryCache.delete(windowDays)); // never keep a failure
+  return value;
+}
+
+/** One round of queries for everything the dashboard shows. */
+async function buildDashboardSummary(windowDays: number): Promise<DashboardSummary> {
   const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const startedAt = Date.now();

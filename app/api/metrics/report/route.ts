@@ -17,7 +17,7 @@ export function GET(req: Request) {
   return handle(req, async () => {
     const raw = new URL(req.url).searchParams.get("days");
     const days = Math.min(Math.max(Number(raw) || 14, 1), 90);
-    const s = await getDashboardSummary(days);
+    const s = await getDashboardSummary(days, { fresh: true });
 
     const lines: string[] = [];
     lines.push(cell("Phoneme Activity Builder usage report"));
