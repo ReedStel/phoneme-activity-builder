@@ -21,6 +21,13 @@ test("the dashboard shows health, stored data and usage statistics", async ({ pa
   await expect(page.getByText(/most used activity/i).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: /Activity over the last/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
+
+  // The daily chart must draw visible bars. They once rendered at zero height
+  // because percentage heights had no sized parent, so guard against that.
+  const barHeights = await page
+    .locator('[title*="successful generations on"]')
+    .evaluateAll((bars) => bars.map((bar) => bar.getBoundingClientRect().height));
+  expect(Math.max(0, ...barHeights)).toBeGreaterThan(0);
 });
 
 test("/health returns 200 with database status", async ({ request }) => {
