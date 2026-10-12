@@ -1,5 +1,8 @@
 import type { DaySeries } from "@/lib/metrics";
 
+/** Tallest bar, in pixels. Pixel heights render reliably inside flex rows. */
+const BAR_MAX_PX = 120;
+
 /**
  * Activity created and generation outcomes per day.
  *
@@ -10,29 +13,34 @@ import type { DaySeries } from "@/lib/metrics";
  */
 export function DailyChart({ series }: { series: DaySeries[] }) {
   const max = Math.max(1, ...series.map((d) => Math.max(d.created, d.success + d.failure)));
-  const height = (value: number) => `${Math.round((value / max) * 100)}%`;
+  // Any non-zero value gets at least 2px so a quiet day is still visible.
+  const px = (value: number) => (value > 0 ? Math.max(2, Math.round((value / max) * BAR_MAX_PX)) : 0);
 
   return (
     <div>
-      <div className="flex items-end gap-1 overflow-x-auto pb-1" style={{ height: "10rem" }}>
+      <div className="flex gap-1 overflow-x-auto pb-1">
         {series.map((day) => (
           <div key={day.date} className="flex min-w-[1.75rem] flex-1 flex-col items-center gap-1">
-            <div className="flex h-full w-full items-end justify-center gap-[3px]" aria-hidden="true">
+            <div
+              className="flex w-full items-end justify-center gap-[3px]"
+              style={{ height: BAR_MAX_PX }}
+              aria-hidden="true"
+            >
               <div
                 title={`${day.created} activities created on ${day.label}`}
                 className="w-2 rounded-t bg-accent"
-                style={{ height: height(day.created) }}
+                style={{ height: px(day.created) }}
               />
               <div className="flex w-2 flex-col justify-end">
                 <div
                   title={`${day.failure} failed generations on ${day.label}`}
                   className="w-full rounded-t bg-red-600"
-                  style={{ height: height(day.failure) }}
+                  style={{ height: px(day.failure) }}
                 />
                 <div
                   title={`${day.success} successful generations on ${day.label}`}
                   className="w-full bg-tile-correct"
-                  style={{ height: height(day.success) }}
+                  style={{ height: px(day.success) }}
                 />
               </div>
             </div>
