@@ -79,3 +79,4 @@ prisma/*.db-journal
 /docs/a4-demo-playbook.html
 /docs/a4-deploy-guide.html
 /docs/a4-recording-script.html
+/docs/a4-cheat-sheet.html
