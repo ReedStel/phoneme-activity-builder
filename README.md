@@ -177,11 +177,18 @@ instance can finish the Next.js build. Its progress is in
 `/var/log/phoneme-setup.log`, and the app's own logs are in
 `docker logs phoneme-activity-builder`.
 
+**A fixed address.** An instance's public IP normally changes every time it
+stops and starts. Allocating an **Elastic IP** (EC2, Elastic IP addresses,
+Allocate, then Associate it with the instance) keeps the address the same
+across lab sessions. The deployed copy for this project is at
+`http://100.29.214.254`, reachable while a Learner Lab session is running.
+
 **Learner Lab limits.** A lab session lasts four hours and stops the instance
 when it ends. Starting the lab again restarts the instance and Docker brings
-the container back by itself (`restart: unless-stopped`), but the public
-address changes, so copy the new one from the EC2 console. The database lives
+the container back by itself (`restart: unless-stopped`). The database lives
 in a Docker volume on the instance's disk, so saved data survives a restart.
+It is plain HTTP on one instance with SQLite; production use would add HTTPS
+with a domain name and PostgreSQL.
 
 ## Dashboard and observability
 
